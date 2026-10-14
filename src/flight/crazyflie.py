@@ -10,15 +10,18 @@ from typing import cast
 
 from controller import (  # pyright: ignore[reportMissingImports]
     GPS,
+    Emitter,
     Gyro,
     InertialUnit,
     Motor,
+    Receiver,
     Robot,
 )
 
 from util import Vec3
 
 from .control import Attitude
+from .sensing import Reception
 
 MOTOR_SIGNS = (-1.0, 1.0, -1.0, 1.0)  # m1 and m3 spin the other way (as in Webots' example)
 
@@ -36,7 +39,9 @@ class Crazyflie:
         self.imu = cast(InertialUnit, self.robot.getDevice("inertial_unit"))
         self.gps = cast(GPS, self.robot.getDevice("gps"))
         self.gyro = cast(Gyro, self.robot.getDevice("gyro"))
-        for sensor in (self.imu, self.gps, self.gyro):
+        self.ir_out = cast(Emitter, self.robot.getDevice("ir emitter"))
+        self.ir_in = cast(Receiver, self.robot.getDevice("ir receiver"))
+        for sensor in (self.imu, self.gps, self.gyro, self.ir_in):
             sensor.enable(self.time_step)
         self.config: dict[str, object] = json.loads(self.robot.getCustomData() or "{}")
         self.id = int(self.robot.getName().split("_")[-1])
@@ -59,6 +64,24 @@ class Crazyflie:
     def velocity(self) -> Vec3:
         """World-frame velocity, m/s (what a real GPS also measures)."""
         return Vec3(*self.gps.getSpeedVector())
+
+    def broadcast(self, text: str) -> None:
+        """Send a packet over IR; neighbours in range receive it on their next step."""
+        self.ir_out.send(text)
+
+    def receptions(self) -> list[Reception]:
+        """Every IR packet that arrived since the last step (my own ones included)."""
+        received = []
+        while self.ir_in.getQueueLength() > 0:
+            received.append(
+                Reception(
+                    text=self.ir_in.getString(),
+                    direction=Vec3(*self.ir_in.getEmitterDirection()),
+                    strength=self.ir_in.getSignalStrength(),
+                )
+            )
+            self.ir_in.nextPacket()
+        return received
 
     def set_motors(self, speeds: tuple[float, float, float, float]) -> None:
         for motor, sign, speed in zip(self.motors, MOTOR_SIGNS, speeds, strict=True):

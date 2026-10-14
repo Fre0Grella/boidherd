@@ -501,6 +501,36 @@ The closest pair is the spawn spacing: the drones never get closer than
 where they start. Headless Webots runs faster than real time with 40
 Python controllers.
 
+## 2026-10-14 · Neighbour sensing over IR (phase 1, step 3)
+
+- `flight/radio.py`: each drone broadcasts `id;vx;vy;vz` every step, its
+  world-frame velocity (for alignment). Stray messages are ignored.
+- `flight/sensing.py`: for each packet, distance = 1/sqrt(signal strength)
+  and the direction (body frame: the IR devices sit in `extensionSlot`,
+  1.5 cm under the body origin, not rotated) is rotated into the world
+  frame with R = Rz(yaw) Ry(pitch) Rx(roll). Own packets are dropped.
+- `boids/zone.py`: one ellipsoidal distance with a vertical scale, for both
+  the perception zone and (later) the separation zone. The IR range (3 m)
+  caps the perception zone in any case.
+- `tools/ir_test.py`: 20 drones in a test room (written to `logs/`, not
+  `maps/`) hover, then sway together back and forth (no drift, spacing
+  unchanged, every drone tilted), logging what they hear; the tool compares
+  it with the referee's ground truth.
+
+| | result |
+|---|---|
+| tilt while measuring | up to 6.2 deg |
+| distance error | mean 1.4 cm, max 3.4 cm |
+| direction error | mean 0.41 deg, max 1.7 deg |
+| in-range pairs heard | 52922 / 52922 (100%) |
+| heard although out of range | 78, all within ~2 cm of the 3 m limit |
+
+Answered: **a drone's own body does not block its IR**, and in this test
+no drone blocked the line of sight between two others either, even packed
+at 1 m: Webots' IR is kinder than real IR here. Walls blocking IR is still
+to check (phase 3). Without the body-to-world rotation the direction error
+would be about the tilt itself (up to 6 deg); measured: 0.4 deg mean.
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?
@@ -510,6 +540,6 @@ Python controllers.
 - `DRONE_RADIUS = 0.1` makes the reachability check permissive: a 0.2 m
   passage lets one drone through, not a flock. Raise it?
 - IR range: 3 m is a placeholder, to tune in phase 1 against the flock's
-  spacing. Also to verify then: whether a drone's own body blocks its IR.
+  spacing. (A drone's own body does not block its IR: checked, see above.)
 - Phase 4: which obstacles can be flown over in the reachability check
   (today every obstacle blocks).

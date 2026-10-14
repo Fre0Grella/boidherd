@@ -4,7 +4,8 @@ Reynolds boids on simulated Crazyflie drones in Webots: a few informed
 leaders guide a flock through an obstacle course to a goal that only
 they know.
 
-Status: designing the architecture. Decisions and their reasons are in
+Status: phase 1 (flat flocking). Drones take off and sense each other
+over IR; the Reynolds rules come next. Decisions and their reasons are in
 [docs/design-log.md](docs/design-log.md).
 
 ## Setup
@@ -45,6 +46,7 @@ crashes when started from Git Bash):
 ```
 uv run tools/flight_test.py      # one drone follows scripted accelerations
 uv run tools/takeoff_test.py     # a whole swarm takes off; -n, --map, --duration
+uv run tools/ir_test.py          # IR neighbour sensing against ground truth
 ```
 
 ## Checks
