@@ -320,6 +320,34 @@ maps are now large (the example is a 40 x 8 m hall turning into a 30 x 8 m
 one), so fitting is never the problem while the behaviour is being
 developed; narrower maps come later, as experiments.
 
+## 2026-10-14 · Spawning the swarm
+
+Drones start **on the floor** of sector A and take off to their own
+altitude, like a real Crazyflie; flocking starts once they hover. Spawning
+in the air was turned down: with motors off at t = 0 every drone would
+drop until its controller spins up.
+
+`place_swarm(course, n, j, seed)` (`src/worldgen/spawn.py`) returns n
+`Drone`s (id, floor position, yaw, takeoff altitude, leader flag), all
+drawn from one generator seeded with the run seed, so course + n + j +
+seed always give the same swarm.
+
+- Floor positions: uniform in sector A, rejected if closer than `spacing`
+  (default 1 m, horizontal) to another drone or closer than `clearance`
+  (default 0.5 m) to the arena edge, a wall or a pillar.
+- Takeoff altitude: uniform in A's `z` band, kept 0.3 m away from the floor
+  and the ceiling. `z` in the map file:
+  - omitted: floor to ceiling (for any sector; the loader fills it in);
+  - `[min, max]`: a band;
+  - a single number, A only: every drone takes off to that altitude, for
+    the fixed-altitude phases. C needs a range: a goal one altitude thick
+    makes no sense.
+- Yaw: uniform; a quadrotor's heading doesn't constrain its motion.
+- Leaders: j distinct ids drawn at random, not the first j, so leadership
+  isn't tied to spawn order. `j = 0` is allowed (phase 1, no leaders).
+- If A can't hold n drones, the error says how many fit. The example map's
+  A is 11 x 6 m: random placement fits 51-58 drones at 1 m spacing.
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?

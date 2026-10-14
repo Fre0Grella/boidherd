@@ -43,7 +43,7 @@ class Arena:
 @dataclass(frozen=True)
 class Sector:
     area: Rect
-    z: Interval | None  # None: any height
+    z: Interval  # altitude band; a map without z gives floor to ceiling
 
 
 @dataclass(frozen=True)

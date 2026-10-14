@@ -53,8 +53,8 @@ def parse_map(doc: dict[str, object]) -> Map:
     return Map(
         description=_string(doc.get("description", ""), "description"),
         arena=arena,
-        sector_a=_sector(sectors["A"], "sectors.A", ceiling),
-        sector_c=_sector(sectors["C"], "sectors.C", ceiling),
+        sector_a=_sector(sectors["A"], "sectors.A", ceiling, single_z=True),
+        sector_c=_sector(sectors["C"], "sectors.C", ceiling, single_z=False),
         walls=_items(obstacles.get("walls", []), "obstacles.walls", _wall, ceiling),
         pillars=_items(obstacles.get("pillars", []), "obstacles.pillars", _pillar, ceiling),
         forests=_items(obstacles.get("forests", []), "obstacles.forests", _forest, ceiling),
@@ -75,11 +75,19 @@ def _arena(value: object, path: str) -> Arena:
     )
 
 
-def _sector(value: object, path: str, ceiling: float) -> Sector:
+def _sector(value: object, path: str, ceiling: float, single_z: bool) -> Sector:
+    """No z means floor to ceiling; with `single_z`, a number means one altitude."""
     t = _table(value, path, required={"x", "y"}, optional={"z"})
     x = _interval(t["x"], f"{path}.x")
     y = _interval(t["y"], f"{path}.y")
-    z = _height_interval(t["z"], f"{path}.z", ceiling) if "z" in t else None
+    if "z" not in t:
+        z = (0.0, ceiling)
+    elif single_z and not isinstance(t["z"], list):
+        h = _number(t["z"], f"{path}.z")
+        _check_height(h, f"{path}.z", ceiling)
+        z = (h, h)
+    else:
+        z = _height_interval(t["z"], f"{path}.z", ceiling)
     return Sector(area=Rect(x[0], y[0], x[1], y[1]), z=z)
 
 
