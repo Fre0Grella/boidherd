@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Webots per-user project state and thumbnails
+worlds/.*.wbproj
+worlds/.*.jpg
+
+# Experiment output
+logs/
