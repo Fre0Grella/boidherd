@@ -24,6 +24,19 @@ paths, e.g. in VS Code `.vscode/settings.json`:
 "python.analysis.extraPaths": ["src", "C:/Program Files/Webots/lib/controller/python"]
 ```
 
+## Make a world
+
+```
+uv run make_world.py l_hall                    # maps/l_hall.toml -> worlds/l_hall.wbt
+uv run make_world.py l_hall -n 20 -j 2 -s 7    # drones, leaders, seed (defaults 10, 1, 0)
+uv run make_world.py l_hall --preview          # also draw worlds/l_hall.png
+```
+
+Then open `worlds/l_hall.wbt` in Webots. Run `make_world.py` once before
+opening any world: it also tells Webots to run the controllers with the
+project's `.venv` (see `docs/design-log.md`, "How Webots starts Python
+controllers").
+
 ## Checks
 
 The same four run on GitHub for every push:

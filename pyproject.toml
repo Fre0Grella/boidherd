@@ -34,7 +34,7 @@ line-ending = "lf"
 select = ["E", "F", "W", "I", "B", "UP"]   # pycodestyle, pyflakes, isort, bugbear, pyupgrade
 
 [tool.pyright]
-include = ["src", "tests"]
+include = ["src", "tests", "make_world.py"]
 typeCheckingMode = "standard"   # same as VS Code
 venvPath = "."
 venv = ".venv"
