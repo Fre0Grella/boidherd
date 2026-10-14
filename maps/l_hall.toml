@@ -1,0 +1,25 @@
+version = 1
+description = "L hall with a pillar forest before the turn and a wall with a gap after it."
+
+[arena]
+ceiling = 2.5                  # flight ceiling; full-height obstacles reach it
+rects = [                      # free space = union of rectangles (two opposite corners)
+  [[0, 0], [20, 4]],           # hall 1: 20 m long, 4 m wide
+  [[16, 0], [20, 16]],         # hall 2: after a sharp left turn
+]
+
+[sectors]
+A = { x = [0.5, 5.0], y = [0.5, 3.5], z = [0.8, 1.5] }   # spawn
+C = { x = [16, 20], y = [12, 16] }                         # goal; no z = any height
+
+[obstacles]
+walls = [
+  [[16, 8], [17.5, 8.2]],      # wall across hall 2...
+  [[18.5, 8], [20, 8.2]],      # ...with a 1 m gap in the middle
+]
+pillars = [
+  { center = [15, 2], radius = 0.15 },
+]
+forests = [
+  { region = [[7, 0], [13, 4]], count = 15, radius = [0.05, 0.12], min_gap = 0.8, seed = 3 },
+]
