@@ -74,11 +74,10 @@ def test_arena_with_a_hole_gets_walls_around_the_hole_too():
     assert_boundary_closed(course)
 
 
-def test_floor_covers_the_walls():
-    course = course_of()
-    floor = box(course.floor.x_min, course.floor.y_min, course.floor.x_max, course.floor.y_max)
-    for wall in solid(course.boundary):
-        assert floor.covers(wall)
+def test_floor_is_the_arena_bounding_rectangle():
+    course = course_of()  # so the floor tiles line up with the outer walls
+    f = course.floor
+    assert (f.x_min, f.y_min, f.x_max, f.y_max) == course.area.bounds
 
 
 def test_rectangles_that_dont_connect_are_rejected():

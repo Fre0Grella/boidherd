@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt  # noqa: E402 - after choosing the backend
 from matplotlib.axes import Axes  # noqa: E402
 from matplotlib.patches import Circle, Polygon, Rectangle  # noqa: E402
 
-from maps.course import Course  # noqa: E402
+from maps.course import WALL_THICKNESS, Course  # noqa: E402
 from maps.model import Rect  # noqa: E402
 
 from .spawn import Drone  # noqa: E402
@@ -50,9 +50,9 @@ def draw_preview(course: Course, swarm: tuple[Drone, ...], title: str, file: Pat
             xs, ys = zip(*(d.xy for d in group), strict=True)
             ax.scatter(xs, ys, s=size, c=color, marker=marker, zorder=3, label=label)
 
-    floor = course.floor
-    ax.set_xlim(floor.x_min, floor.x_max)
-    ax.set_ylim(floor.y_min, floor.y_max)
+    floor, t = course.floor, WALL_THICKNESS  # show the boundary walls too
+    ax.set_xlim(floor.x_min - t, floor.x_max + t)
+    ax.set_ylim(floor.y_min - t, floor.y_max + t)
     ax.set_aspect("equal")
     ax.set_xlabel("x (m)")
     ax.set_ylabel("y (m)")

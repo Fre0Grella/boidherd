@@ -25,7 +25,7 @@ DRONE_RADIUS = 0.1  # half of the narrowest passage a drone can fly through
 class Course:
     ceiling: float
     area: Polygon  # free space inside the arena, before obstacles
-    floor: Rect  # covers the whole arena and its boundary walls
+    floor: Rect  # the arena's bounding rectangle: floor tiles line up with its outer walls
     boundary: tuple[Wall, ...]  # around the arena, full height
     walls: tuple[Wall, ...]  # from the map
     pillars: tuple[Pillar, ...]  # placed by hand and grown from forests
@@ -57,7 +57,7 @@ def build_course(m: Map) -> Course:
     return Course(
         ceiling=m.arena.ceiling,
         area=area,
-        floor=_bounds(area, margin=WALL_THICKNESS),
+        floor=_bounds(area, margin=0.0),
         boundary=_boundary_walls(area),
         walls=m.walls,
         pillars=tuple(pillars),

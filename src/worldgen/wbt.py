@@ -132,29 +132,36 @@ def _sector_marker(sector: Sector, name: str, color: tuple[float, float, float])
     cx, cy = sector.area.center
     w, d = _num(sector.area.width), _num(sector.area.depth)
     z_min, z_max = sector.z
-    return (
-        f"DEF {name.upper().replace(' ', '_')} Pose {{\n"
-        f"  translation {_num(cx)} {_num(cy)} 0\n"
-        "  children [\n"
+    patch = (
         "    Pose {\n"
         "      translation 0 0 0.01\n"  # high enough to avoid z-fighting from far away
         "      children [\n"
         "        Shape {\n"
-        f"          appearance {_appearance(color, transparency=0.25, glow=0.6)}\n"
+        f"          appearance {_appearance(color, transparency=0.85)}\n"
         f"          geometry Plane {{ size {w} {d} }}\n"
         "        }\n"
         "      ]\n"
         "    }\n"
-        "    Pose {\n"
-        f"      translation 0 0 {_num((z_min + z_max) / 2)}\n"
-        "      children [\n"
-        "        Shape {\n"
-        f"          appearance {_appearance(color, transparency=0.85, glow=0.3)}\n"
-        f"          geometry Box {{ size {w} {d} {_num(max(z_max - z_min, 0.02))} }}\n"
-        "          castShadows FALSE\n"
-        "        }\n"
-        "      ]\n"
-        "    }\n"
+    )
+    band = ""
+    if z_max - z_min >= 0.1:  # a single altitude would be a thin slab that looks solid
+        band = (
+            "    Pose {\n"
+            f"      translation 0 0 {_num((z_min + z_max) / 2)}\n"
+            "      children [\n"
+            "        Shape {\n"
+            f"          appearance {_appearance(color, transparency=0.95)}\n"
+            f"          geometry Box {{ size {w} {d} {_num(z_max - z_min)} }}\n"
+            "          castShadows FALSE\n"
+            "        }\n"
+            "      ]\n"
+            "    }\n"
+        )
+    return (
+        f"DEF {name.upper().replace(' ', '_')} Pose {{\n"
+        f"  translation {_num(cx)} {_num(cy)} 0\n"
+        "  children [\n"
+        f"{patch}{band}"
         "  ]\n"
         "}\n"
     )

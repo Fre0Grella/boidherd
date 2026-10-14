@@ -356,15 +356,21 @@ returns the `.wbt` text: one small function per kind of node.
 - Obstacles and boundary walls are static `Solid`s (a `boundingObject` but
   no `physics`, so they collide but never move); full-height ones reach the
   ceiling. Colours: grey boundary, orange obstacles.
-- Sectors A (green) and C (gold) are marked by a glowing patch on the
-  floor and a see-through box over their altitude band (A: the takeoff
-  band; C: floor to ceiling). The patch sits 1 cm above the floor: at 2 mm
-  it flickered from far away (z-fighting).
+- Sectors A (green) and C (gold) are marked by a faint patch on the floor
+  (85% transparent; brighter, glowing patches hid the drones standing on
+  them) and an even fainter box over their altitude band (A: the takeoff
+  band; C: floor to ceiling), drawn only when the band is at least 10 cm
+  thick: a single altitude would make a thin slab that looks solid from a
+  low angle. The patch sits 1 cm above the floor: at 2 mm it flickered from
+  far away (z-fighting).
 - Leaders carry a glowing red ball on top, to tell them apart while the
   simulation runs.
 - The floor keeps Webots' own checkerboard but with `tileSize 4` (2 m
   squares): the default 0.5 m tiles flicker when the whole course is in
   view. No custom textures or other assets, by choice.
+- The floor is exactly the arena's bounding rectangle. Webots starts the
+  tile pattern at the floor's corner, so a floor reaching 10 cm under the
+  walls left a cut-off strip of squares along every wall.
 - All markers are visual only (no `boundingObject`): no mass, no
   collisions, invisible to IR and to the distance sensors.
 - Each drone is a `Crazyflie` standing on the floor (`DEF DRONE_<id>`,
