@@ -1,0 +1,13 @@
+version = 1
+description = "wide square room: no obstacles, just a big open space."
+
+[arena]
+ceiling = 3                  # flight ceiling; full-height obstacles reach it
+rects = [                      # free space = union of rectangles (two opposite corners)
+  [[0, 0], [30, 30]],           # hall 1: 40 m long, 8 m wide
+]
+
+[sectors]
+A = { rect = [[0, 0], [4, 30]] }    # spawn: a 4 m strip along the left wall
+C = { rect = [[26, 0], [30, 30]] }  # goal: a 4 m strip along the right wall
+
