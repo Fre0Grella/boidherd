@@ -82,7 +82,7 @@ def test_low_obstacles_keep_their_height():
     doc: dict[str, object] = {
         "version": 1,
         "arena": {"ceiling": 2.5, "rects": [[[0, 0], [20, 8]]]},
-        "sectors": {"A": {"x": [1, 5], "y": [1, 7]}, "C": {"x": [16, 20], "y": [0, 8]}},
+        "sectors": {"A": {"rect": [[1, 1], [5, 7]]}, "C": {"rect": [[16, 0], [20, 8]]}},
         "obstacles": {"pillars": [{"center": [10, 2], "radius": 0.2, "height": 1.2}]},
     }
     course = build_course(parse_map(doc))

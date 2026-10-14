@@ -122,7 +122,7 @@ procedural layouts).
 
 - A map describes geometry only. n, j, the seed, IR range and boid weights
   belong to the run, so one map serves the whole n x j grid.
-- Only sectors A (spawn) and C (goal) are declared, as axis-aligned boxes;
+- Only sectors A (spawn) and C (goal) are declared, as axis-aligned rectangles;
   "B" is simply the rest of the course.
 - Procedural obstacles have a fixed layout per map (seed in the map file).
   The run seed changes only spawn positions and which drones are leaders, so
@@ -402,6 +402,23 @@ experiment scripts can call it directly.
 Checked end to end: `uv run make_world.py l_hall -n 20 -j 2 -s 7` and
 opening the world in Webots started all 21 controllers with the `.venv`
 Python (through the generated `runtime.ini`), with no errors or warnings.
+
+## 2026-10-14 · Sectors use corners, like every other rectangle
+
+Sectors were first written as ranges (`x = [x_min, x_max], y = [y_min,
+y_max]`) while the arena and walls use two corners (`[[x1, y1], [x2,
+y2]]`). Writing the first map by hand, the corner habit produced `x = [0,
+0], y = [4, 30]` (meant as corners (0, 0) and (4, 30)), which the loader
+read as a sector with no width. Two notations for one thing invite exactly
+that, so sectors now use corners too:
+
+```toml
+A = { rect = [[1, 1], [12, 7]], z = [0.8, 1.5] }
+C = { rect = [[32, 24], [40, 30]] }
+```
+
+The old `x`/`y` form gets an error pointing to `rect`. The map version
+stays 1: no maps in the old form exist outside this repo.
 
 ## Open questions
 

@@ -65,13 +65,13 @@ def test_too_many_drones_for_a_says_how_many_fit(course: Course):
 
 
 def course_with_a_z(z: object | None) -> Course:
-    a: dict[str, object] = {"x": [1, 5], "y": [1, 7]}
+    a: dict[str, object] = {"rect": [[1, 1], [5, 7]]}
     if z is not None:
         a["z"] = z
     doc: dict[str, object] = {
         "version": 1,
         "arena": {"ceiling": 2.5, "rects": [[[0, 0], [20, 8]]]},
-        "sectors": {"A": a, "C": {"x": [16, 20], "y": [0, 8]}},
+        "sectors": {"A": a, "C": {"rect": [[16, 0], [20, 8]]}},
     }
     return build_course(parse_map(doc))
 

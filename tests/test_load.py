@@ -14,7 +14,7 @@ def minimal(**changes: object) -> dict[str, object]:
     doc: dict[str, object] = {
         "version": 1,
         "arena": {"ceiling": 2.5, "rects": [[[0, 0], [20, 4]]]},
-        "sectors": {"A": {"x": [0, 4], "y": [0, 4]}, "C": {"x": [16, 20], "y": [0, 4]}},
+        "sectors": {"A": {"rect": [[0, 0], [4, 4]]}, "C": {"rect": [[16, 0], [20, 4]]}},
     }
     doc.update(changes)
     return doc
@@ -75,7 +75,7 @@ def test_forest_number_means_fixed_value():
 
 
 def test_sector_a_z_can_be_one_altitude():
-    sectors = {"A": {"x": [0, 4], "y": [0, 4], "z": 1.2}, "C": {"x": [16, 20], "y": [0, 4]}}
+    sectors = {"A": {"rect": [[0, 0], [4, 4]], "z": 1.2}, "C": {"rect": [[16, 0], [20, 4]]}}
     assert parse_map(minimal(sectors=sectors)).sector_a.z == (1.2, 1.2)
 
 
@@ -89,9 +89,9 @@ def test_unknown_key_suggests_the_right_one():
 
 def test_unknown_sector_is_rejected():
     sectors = {
-        "A": {"x": [0, 4], "y": [0, 4]},
-        "B": {"x": [5, 6], "y": [0, 4]},
-        "C": {"x": [16, 20], "y": [0, 4]},
+        "A": {"rect": [[0, 0], [4, 4]]},
+        "B": {"rect": [[5, 0], [6, 4]]},
+        "C": {"rect": [[16, 0], [20, 4]]},
     }
     assert error_of(minimal(sectors=sectors)) == "sectors.B: unknown key"
 
@@ -134,8 +134,14 @@ def test_reversed_range_is_rejected():
 
 
 def test_sector_c_z_must_be_a_range():
-    sectors = {"A": {"x": [0, 4], "y": [0, 4]}, "C": {"x": [16, 20], "y": [0, 4], "z": 1.2}}
+    sectors = {"A": {"rect": [[0, 0], [4, 4]]}, "C": {"rect": [[16, 0], [20, 4]], "z": 1.2}}
     assert error_of(minimal(sectors=sectors)) == "sectors.C.z: expected a list [...], got a number"
+
+
+def test_old_x_y_sectors_point_to_rect():
+    sectors = {"A": {"x": [0, 4], "y": [0, 4]}, "C": {"rect": [[16, 0], [20, 4]]}}
+    msg = error_of(minimal(sectors=sectors))
+    assert msg == "sectors.A: write the sector as rect = [[x1, y1], [x2, y2]], not x/y ranges"
 
 
 def test_file_errors_start_with_the_file_name(tmp_path: Path):

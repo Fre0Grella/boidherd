@@ -76,10 +76,12 @@ def _arena(value: object, path: str) -> Arena:
 
 
 def _sector(value: object, path: str, ceiling: float, single_z: bool) -> Sector:
-    """No z means floor to ceiling; with `single_z`, a number means one altitude."""
-    t = _table(value, path, required={"x", "y"}, optional={"z"})
-    x = _interval(t["x"], f"{path}.x")
-    y = _interval(t["y"], f"{path}.y")
+    """Two corners like every other rectangle; no z means floor to ceiling, and with
+    `single_z` a number means one altitude."""
+    if isinstance(value, dict) and ("x" in value or "y" in value):
+        raise MapError(f"{path}: write the sector as rect = [[x1, y1], [x2, y2]], not x/y ranges")
+    t = _table(value, path, required={"rect"}, optional={"z"})
+    area = _rect(t["rect"], f"{path}.rect")
     if "z" not in t:
         z = (0.0, ceiling)
     elif single_z and not isinstance(t["z"], list):
@@ -88,7 +90,7 @@ def _sector(value: object, path: str, ceiling: float, single_z: bool) -> Sector:
         z = (h, h)
     else:
         z = _height_interval(t["z"], f"{path}.z", ceiling)
-    return Sector(area=Rect(x[0], y[0], x[1], y[1]), z=z)
+    return Sector(area=area, z=z)
 
 
 def _wall(value: object, path: str, ceiling: float) -> Wall:

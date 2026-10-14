@@ -10,8 +10,9 @@ REPO = Path(__file__).parent.parent
 
 @pytest.fixture
 def project(tmp_path: Path) -> Path:
-    """A copy of the repo's maps and controllers, so the test writes nothing in the repo."""
-    shutil.copytree(REPO / "maps", tmp_path / "maps")
+    """A project with only the example map, so the test writes nothing in the repo."""
+    (tmp_path / "maps").mkdir()
+    shutil.copy(REPO / "maps" / "l_hall.toml", tmp_path / "maps")
     for name in ("drone", "referee"):
         (tmp_path / "controllers" / name).mkdir(parents=True)
         (tmp_path / "controllers" / name / f"{name}.py").write_text("", encoding="utf-8")

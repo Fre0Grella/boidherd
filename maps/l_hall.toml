@@ -9,8 +9,8 @@ rects = [                      # free space = union of rectangles (two opposite 
 ]
 
 [sectors]
-A = { x = [1, 12], y = [1, 7], z = [0.8, 1.5] }  # spawn: takeoff altitude band (a number: all the same)
-C = { x = [32, 40], y = [24, 30] }                # goal; no z = floor to ceiling
+A = { rect = [[1, 1], [12, 7]], z = [0.8, 1.5] }  # spawn; z: takeoff altitude band (a number: all the same)
+C = { rect = [[32, 24], [40, 30]] }               # goal; no z = floor to ceiling
 
 [obstacles]
 walls = [

@@ -10,10 +10,10 @@ from maps.course import WALL_THICKNESS, Course, build_course
 
 MAPS = Path(__file__).parent.parent / "maps"
 L_RECTS = [[[0, 0], [20, 4]], [[16, 0], [20, 16]]]
-L_SECTORS = {"A": {"x": [0, 4], "y": [0, 4]}, "C": {"x": [16, 20], "y": [12, 16]}}
+L_SECTORS = {"A": {"rect": [[0, 0], [4, 4]]}, "C": {"rect": [[16, 12], [20, 16]]}}
 # a square track around a 6 x 6 m hole
 RING_RECTS = [[[0, 0], [10, 2]], [[0, 8], [10, 10]], [[0, 0], [2, 10]], [[8, 0], [10, 10]]]
-RING_SECTORS = {"A": {"x": [0, 2], "y": [0, 2]}, "C": {"x": [8, 10], "y": [8, 10]}}
+RING_SECTORS = {"A": {"rect": [[0, 0], [2, 2]]}, "C": {"rect": [[8, 8], [10, 10]]}}
 
 
 def course_of(rects: object = L_RECTS, sectors: object = L_SECTORS, **obstacles: object) -> Course:
@@ -94,7 +94,7 @@ def test_rectangles_touching_only_at_a_corner_are_rejected():
 
 
 def test_sector_outside_the_arena_is_rejected():
-    sectors = {"A": {"x": [0, 4], "y": [0, 4]}, "C": {"x": [5, 9], "y": [8, 12]}}
+    sectors = {"A": {"rect": [[0, 0], [4, 4]]}, "C": {"rect": [[5, 8], [9, 12]]}}
     assert error_of(sectors=sectors) == "sectors.C: not inside the arena"
 
 
