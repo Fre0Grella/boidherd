@@ -6,25 +6,22 @@
 Builds worlds/flight_test.wbt (map `square`, one drone, controller
 `flight_test`), runs Webots headless until the controller writes
 logs/flight_test.done, stops that Webots, and prints the numbers from
-logs/flight_test.csv. Run it from PowerShell: Webots crashes when started
+logs/flight_test_telemetry.csv. Run it from PowerShell: Webots crashes when started
 from Git Bash.
 """
 
 import argparse
 import csv
 import math
-import os
-import subprocess
 import sys
-import time
 from pathlib import Path
+
+from headless import RunError, run_until
 
 from worldgen.cli import generate
 
 ROOT = Path(__file__).resolve().parents[1]
 LOGS = ROOT / "logs"
-WEBOTS = Path(os.environ.get("WEBOTS_HOME", r"C:\Program Files\Webots"))
-WEBOTS_EXE = WEBOTS / "msys64" / "mingw64" / "bin" / "webots.exe"
 
 # script times (s from the script start) and the world velocity expected there
 CHECKPOINTS = [
@@ -53,30 +50,18 @@ def main() -> int:
 
     done = LOGS / "flight_test.done"
     done.unlink(missing_ok=True)
-    webots = subprocess.Popen(
-        [str(WEBOTS_EXE), "--batch", "--mode=fast", "--no-rendering", "--minimize",
-         "--port=1297", str(result.world)],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )  # fmt: skip
-    started = time.monotonic()
     try:
-        while not done.exists():
-            if time.monotonic() - started > args.timeout:
-                print("error: timed out waiting for the flight test", file=sys.stderr)
-                return 1
-            if webots.poll() is not None:
-                print("error: Webots stopped before the end of the test", file=sys.stderr)
-                return 1
-            time.sleep(0.5)
-    finally:  # stop only the Webots we started, with its controllers
-        subprocess.run(["taskkill", "/PID", str(webots.pid), "/T", "/F"], capture_output=True)
-    print(f"ran in {time.monotonic() - started:.0f} s wall clock")
+        wall = run_until(result.world, done.exists, args.timeout)
+    except RunError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    print(f"ran in {wall:.0f} s wall clock")
     report(drone.altitude)
     return 0
 
 
 def report(target: float) -> None:
-    rows = list(csv.DictReader(open(LOGS / "flight_test.csv", newline="")))
+    rows = list(csv.DictReader(open(LOGS / "flight_test_telemetry.csv", newline="")))
     f = [{k: (float(v) if k != "phase" else v) for k, v in r.items()} for r in rows]
     hover = [r for r in f if r["phase"] == "hovering"]
     follow = [r for r in f if r["phase"] == "following"]

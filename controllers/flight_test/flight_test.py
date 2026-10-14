@@ -2,7 +2,7 @@
 
 Used by tools/flight_test.py, which builds the world and reads the log. The
 accelerations are in the world frame, so the drone (spawned at any yaw) must
-move along world x and y whatever way it faces. It writes logs/flight_test.csv
+move along world x and y whatever way it faces. It writes logs/flight_test_telemetry.csv
 and, when the script is over, logs/flight_test.done; it never quits Webots.
 """
 
@@ -34,7 +34,7 @@ pilot = Autopilot(altitude=float(str(drone.config["altitude"])))
 hover_since: float | None = None
 last_time = drone.time
 
-with open(logs / "flight_test.csv", "w", newline="") as f:
+with open(logs / "flight_test_telemetry.csv", "w", newline="") as f:
     log = csv.writer(f)
     log.writerow(["t", "phase", "x", "y", "z", "vx", "vy", "vz",
                   "roll", "pitch", "yaw", "ax_cmd", "ay_cmd", "motor"])  # fmt: skip

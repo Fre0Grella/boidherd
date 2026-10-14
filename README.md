@@ -37,6 +37,16 @@ opening any world: it also tells Webots to run the controllers with the
 project's `.venv` (see `docs/design-log.md`, "How Webots starts Python
 controllers").
 
+## Test in Webots
+
+Headless runs that report numbers (start them from PowerShell: Webots
+crashes when started from Git Bash):
+
+```
+uv run tools/flight_test.py      # one drone follows scripted accelerations
+uv run tools/takeoff_test.py     # a whole swarm takes off; -n, --map, --duration
+```
+
 ## Checks
 
 The same four run on GitHub for every push:

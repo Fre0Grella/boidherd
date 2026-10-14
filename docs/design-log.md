@@ -479,6 +479,28 @@ Open: after braking the drone keeps ~0.05 m/s and drifts ~15 cm in 5 s;
 open-loop acceleration has no position feedback, the flocking rules will
 close the loop. Takeoff to 1.75 m takes ~10 s.
 
+## 2026-10-14 · Swarm takeoff (phase 1, step 2)
+
+- `controllers/drone/drone.py` now flies: lift off, climb to the altitude
+  in its customData, hover. Flocking is not attached yet.
+- `controllers/referee/referee.py` logs every drone's true position and
+  velocity at every step to `logs/<world>.csv`, flushed as it goes. It
+  never quits Webots; the tools stop the Webots they start.
+- `tools/headless.py` runs a world without a window until a condition
+  holds and stops only that Webots; shared by the test tools.
+- `tools/takeoff_test.py` builds a world with the real controller, runs it
+  and reports takeoff times, overshoot, the closest two drones ever got,
+  sideways drift and crashes.
+
+| run | hovering | overshoot | closest pair | drift | crashes | 1 s simulated in |
+|---|---|---|---|---|---|---|
+| square, 20 drones, 25 s | all, 6.0-6.2 s | 0 mm | 1.24 m | 0 | none | 0.4 s |
+| l_hall, 40 drones, 30 s | all, 5.9-6.4 s | 2 mm | 1.00 m | 0 | none | 0.6 s |
+
+The closest pair is the spawn spacing: the drones never get closer than
+where they start. Headless Webots runs faster than real time with 40
+Python controllers.
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?
