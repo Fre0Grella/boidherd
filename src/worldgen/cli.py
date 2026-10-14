@@ -37,15 +37,23 @@ def generate(
     j: int,
     seed: int,
     preview: bool = False,
+    name: str | None = None,
+    controller: str = "drone",
+    time_step: int = 32,
 ) -> Generated:
-    """Load, check, build and write: worlds/<map>.wbt (and .png with `preview`)."""
+    """Load, check, build and write: worlds/<name>.wbt (and .png with `preview`).
+
+    `name` defaults to the map's name; `controller` and `time_step` are for
+    test tools (see `render_world`), the command line always uses the defaults.
+    """
     course = build_course(load_map(map_file))
     swarm = place_swarm(course, n=n, j=j, seed=seed)
     title = f"{map_file.stem}  n={n} j={j} seed={seed}"
 
     worlds.mkdir(parents=True, exist_ok=True)
-    world = worlds / f"{map_file.stem}.wbt"
-    world.write_text(render_world(course, swarm, title), encoding="utf-8")
+    world = worlds / f"{name or map_file.stem}.wbt"
+    text = render_world(course, swarm, title, controller=controller, time_step=time_step)
+    world.write_text(text, encoding="utf-8")
     write_runtime_inis(controllers)
 
     png = None

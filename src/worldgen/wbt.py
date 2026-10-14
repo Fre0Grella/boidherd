@@ -36,11 +36,18 @@ def render_world(
     swarm: tuple[Drone, ...],
     title: str,
     ir_range: float = 3.0,
+    controller: str = "drone",
+    time_step: int = 32,
 ) -> str:
-    """The whole .wbt file. `ir_range`: how far the infra-red packets carry, metres."""
+    """The whole .wbt file.
+
+    `ir_range`: how far the infra-red packets carry, metres.
+    `controller`: the drones' controller (another one only for tests and tools).
+    `time_step`: Webots' basic time step, milliseconds.
+    """
     nodes = [
         _header(),
-        _world_info(title),
+        _world_info(title, time_step),
         _viewpoint(course.floor),
         "TexturedBackground {\n}\nTexturedBackgroundLight {\n}\n",
         _floor(course.floor),
@@ -50,7 +57,7 @@ def render_world(
         *(_wall(w, f"wall {i}", course.ceiling, ORANGE) for i, w in enumerate(course.walls)),
         *(_pillar(p, f"pillar {i}", course.ceiling) for i, p in enumerate(course.pillars)),
         _referee(course),
-        *(_drone(d, course.sector_c, ir_range) for d in swarm),
+        *(_drone(d, course.sector_c, ir_range, controller) for d in swarm),
     ]
     return "\n".join(nodes)
 
@@ -64,8 +71,8 @@ def _header() -> str:
     return "\n".join(lines) + "\n"
 
 
-def _world_info(title: str) -> str:
-    return f"WorldInfo {{\n  title {_string(title)}\n}}\n"
+def _world_info(title: str, time_step: int) -> str:
+    return f"WorldInfo {{\n  title {_string(title)}\n  basicTimeStep {time_step}\n}}\n"
 
 
 def _viewpoint(floor: Rect, heading: float = 3 * math.pi / 4, pitch: float = 0.8) -> str:
@@ -209,7 +216,7 @@ def _referee(course: Course) -> str:
     )
 
 
-def _drone(drone: Drone, goal: Sector, ir_range: float) -> str:
+def _drone(drone: Drone, goal: Sector, ir_range: float, controller: str) -> str:
     x, y = drone.xy
     data: dict[str, object] = {"altitude": round(drone.altitude, 4)}
     if drone.leader:
@@ -220,7 +227,7 @@ def _drone(drone: Drone, goal: Sector, ir_range: float) -> str:
         f"  translation {_num(x)} {_num(y)} {CRAZYFLIE_REST_Z}\n"
         f"  rotation 0 0 1 {_num(drone.yaw)}\n"
         f'  name "drone_{drone.id}"\n'
-        '  controller "drone"\n'
+        f"  controller {_string(controller)}\n"
         f"  customData {_string(json.dumps(data, separators=(',', ':')))}\n"
         "  extensionSlot [\n"
         "    Emitter {\n"

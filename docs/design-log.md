@@ -420,12 +420,65 @@ C = { rect = [[32, 24], [40, 30]] }
 The old `x`/`y` form gets an error pointing to `rect`. The map version
 stays 1: no maps in the old form exist outside this repo.
 
+## 2026-10-14 · Phase 1 plan
+
+Agreed order: the flight layer first (one drone), then the whole swarm
+taking off, then neighbour detection over IR with an ellipsoidal zone; the
+Reynolds rules are written in parallel as pure code and attached to the
+drones only once flight is reliable. Speed limit: a high default for now.
+Yaw: held constant until phase 3. Settings: frozen dataclasses with
+defaults, one file per layer (`flight/params.py`, later `boids/params.py`).
+Shared helpers live in `src/util/` (`Vec3`).
+
+## 2026-10-14 · Flight layer
+
+`src/flight/` turns a world-frame acceleration into motor speeds:
+
+- `control.py` (pure): `tilt_for()` rotates the acceleration into the body
+  frame with the measured yaw and converts it to pitch (forward) and roll
+  (sideways), a = g tan(tilt), capped at 20 degrees; `MotorMixer` is the
+  altitude + attitude PID and motor mixing of Webots' Crazyflie example
+  (Apache 2.0), without its velocity loop. Tilt signs are taken from the
+  example, not guessed.
+- `autopilot.py` (pure): GROUNDED -> CLIMBING -> HOVERING -> FOLLOWING.
+- `crazyflie.py`: the only module importing Webots; velocity comes from
+  `GPS.getSpeedVector()`.
+- `params.py`: every number, in `FlightParams`.
+
+Tested with `tools/flight_test.py`: one drone spawned at a -47 degree yaw
+takes off, hovers, then follows scripted world accelerations (+x push,
+coast, brake, +y push, brake, hold), at Webots' default 32 ms step.
+
+| | first version | final |
+|---|---|---|
+| overshoot at the end of the climb | 67 cm | 2 mm |
+| hover altitude error, mean / max | 121 / 302 mm | 5 / 23 mm |
+| altitude error while manoeuvring | 314 mm | 7 mm |
+| world velocity after each push/brake | within 0.06 m/s | within 0.06 m/s |
+
+What it took:
+- **Hover speed from the physics**: 4 k w^2 = m g gives 55.4 rad/s (proto:
+  m = 0.05 kg, k = 4e-5); measured in steady flight: 55.37. The example's
+  48 plus integral made the drone lag and overshoot.
+- **The setpoint kept rising after the phase changed** (bug): it now rises
+  until it reaches the target, slowing down over the last metre (1/s times
+  the gap), which removed the overshoot.
+- **Liftoff**: the drone leaves the floor only about 2 s after the motors
+  start, even at a constant 70 rad/s (cause inside Webots not pinned down).
+  A PID waiting on the floor winds up its integral, so on the floor the
+  motors run at a fixed liftoff speed and the PIDs start fresh 5 cm up.
+- **Tilt compensation**: the motors speed up by 1/sqrt(cos roll cos pitch).
+
+Open: after braking the drone keeps ~0.05 m/s and drifts ~15 cm in 5 s;
+open-loop acceleration has no position feedback, the flocking rules will
+close the loop. Takeoff to 1.75 m takes ~10 s.
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?
   Default: not; marked leaders could be a variant.
 - Do drones yaw to face their velocity (needed for steer-to-avoid with the
-  front sensor)?
+  front sensor)? Deferred to phase 3; yaw is held constant until then.
 - `DRONE_RADIUS = 0.1` makes the reachability check permissive: a 0.2 m
   passage lets one drone through, not a flock. Raise it?
 - IR range: 3 m is a placeholder, to tune in phase 1 against the flock's
