@@ -171,7 +171,7 @@ Turned down:
 
 - The first key of every map is `version = 1`, bumped whenever the format
   changes, so old maps fail loudly instead of being misread.
-- Two obstacle types, both as tall as the ceiling for now:
+- Two obstacle types:
   - **walls**: axis-aligned rectangles, given by two opposite corners like
     the arena;
   - **pillars**: cylinders, with no sharp edges for drones to clip.
@@ -202,6 +202,86 @@ between runs. The generator also draws a PNG preview of the map (arena,
 obstacles, sectors, spawn points) to check a map without Webots and to use
 in the report. Generated worlds are not kept in git: they are rebuilt from
 map + seed.
+
+## 2026-10-14 · Repo layout and command line
+
+One job per folder; the repo root is also the Webots project (Webots
+expects `worlds/` and `controllers/` there).
+
+```
+boidherd/
+├── make_world.py     the one command to run
+├── maps/             map files (.toml), written by hand
+├── worlds/           generated worlds and previews (not in git)
+├── controllers/      Webots entry points (drone, referee), no logic
+├── src/              all the Python code: maps, worldgen, later boids, flight
+├── tests/
+└── docs/
+```
+
+`src/` holds the packages directly (`src/maps`, `src/worldgen`, ...); they are
+installed in the project's virtual environment, so every script and test can
+import them (see "Tooling" below).
+
+```
+uv run make_world.py l_hall                    # maps/l_hall.toml -> worlds/l_hall.wbt
+uv run make_world.py l_hall -n 20 -j 2 -s 7    # drones, leaders, seed (defaults 10, 1, 0)
+uv run make_world.py l_hall --preview          # also draw worlds/l_hall.png
+```
+
+The map is always validated; on an error nothing is written. Experiment
+batches call the same Python functions directly, so the command stays small.
+
+## 2026-10-14 · Map loader
+
+`src/maps/model.py` holds frozen dataclasses that mirror the format;
+`src/maps/load.py` turns a TOML file into them. The loader rejects unknown
+keys at every level and suggests the closest one (`heigth` -> "did you mean
+'height'?"), so a typo in an optional key can't silently change the map;
+rejects booleans where numbers are expected (in Python `True` counts as an
+integer); accepts rectangle corners in any order. Checks that need geometry
+are left to the course builder. The map has no `name` field: the file name
+is the map's name, so there is one source of truth.
+
+## 2026-10-14 · Tooling
+
+- **uv** manages Python 3.11 (`.python-version`), the virtual environment
+  (`.venv`) and a lockfile (`uv.lock`) pinning every package version, so the
+  environment can be rebuilt identically. One command: `uv sync`.
+- The project is built with setuptools and installed in editable mode, so
+  `src/` packages are importable everywhere without path tricks.
+- **ruff** for linting and formatting, **pyright** in "standard" mode (the
+  same as VS Code), **pytest** for tests.
+- **CI** (GitHub Actions) runs the same four checks on every push and pull
+  request, and fails if `uv.lock` is out of date.
+
+## 2026-10-14 · How Webots starts Python controllers (tested)
+
+Tested on this machine with Webots R2025a, with throwaway probe controllers:
+
+- By default Webots runs `python -u <controller>.py` (Preferences > General
+  > Python command = `python`), i.e. the system Python, which can't import
+  our `src/` packages. Output is unbuffered (`-u`).
+- Webots sets `PYTHONPATH` to its own `lib/controller/python`, plus
+  `WEBOTS_HOME`, `WEBOTS_INSTANCE_PATH`, `WEBOTS_ROBOT_NAME`. The working
+  directory is the controller's folder.
+- A `runtime.ini` in the controller folder with `[python] COMMAND = <absolute
+  path to .venv python>` works: the venv Python runs, imports our packages
+  and the Webots `controller` module.
+- **A relative path in `COMMAND` crashes all of Webots** (access violation,
+  exit code -1073741819), not just the controller.
+- `$(VAR)` references in `COMMAND` are expanded, but Webots provides no
+  variable pointing at the project folder.
+- Launching `webots.exe` from Git Bash segfaults; from PowerShell it works.
+  A second instance needs `--port` (default 1234).
+
+Decision: `make_world.py` writes a `runtime.ini` into every controller
+folder, with the absolute path of the interpreter it runs in (the `.venv`
+one, via `uv run`). The files are kept out of git, so no machine-specific
+path is committed and a fresh clone gets correct files on its first world
+build. Turned down: a committed `runtime.ini` reading an environment
+variable (a manual step on every machine), and controllers on the system
+Python with `src/` added by hand (loses the pinned package versions).
 
 ## Open questions
 
