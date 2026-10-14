@@ -1,0 +1,36 @@
+[project]
+name = "boidherd"
+version = "0.1.0"
+description = "Reynolds boids on simulated Crazyflie drones in Webots, guided by a few informed leaders"
+readme = "README.md"
+requires-python = ">=3.11"     # tomllib
+dependencies = [
+  "shapely>=2.0",              # world generation: arena union and outline
+  "matplotlib>=3.7",           # world generation: --preview
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6", "pyright>=1.1.380"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]                # src/ holds the packages directly: maps, worldgen, ...
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]   # pycodestyle, pyflakes, isort, bugbear, pyupgrade
+
+[tool.pyright]
+include = ["src", "tests"]
+typeCheckingMode = "standard"   # same as VS Code
+venvPath = "."
+venv = ".venv"
