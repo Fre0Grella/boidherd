@@ -13,11 +13,12 @@ dependencies = [
 dev = ["pytest>=8", "ruff>=0.6", "pyright>=1.1.380"]
 
 [build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
 
-[tool.setuptools.packages.find]
-where = ["src"]                # src/ holds the packages directly: maps, worldgen, ...
+[tool.hatch.build.targets.wheel]
+only-include = ["src"]
+sources = ["src"]              # src/ holds the packages directly: maps, worldgen, ...
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

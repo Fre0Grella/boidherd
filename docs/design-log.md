@@ -248,8 +248,11 @@ is the map's name, so there is one source of truth.
 - **uv** manages Python 3.11 (`.python-version`), the virtual environment
   (`.venv`) and a lockfile (`uv.lock`) pinning every package version, so the
   environment can be rebuilt identically. One command: `uv sync`.
-- The project is built with setuptools and installed in editable mode, so
-  `src/` packages are importable everywhere without path tricks.
+- The project is built with hatchling (setuptools left a `*.egg-info`
+  folder in `src/`) and installed in editable mode, so `src/` packages are
+  importable everywhere without path tricks.
+- Editor settings (`.vscode/`) are personal and not in git; the README says
+  which import paths the editor needs.
 - **ruff** for linting and formatting, **pyright** in "standard" mode (the
   same as VS Code), **pytest** for tests.
 - **CI** (GitHub Actions) runs the same four checks on every push and pull

@@ -15,6 +15,15 @@ Needs [uv](https://docs.astral.sh/uv/) and Webots R2025a.
 uv sync          # creates .venv with Python 3.11 and installs everything
 ```
 
+For the editor to resolve imports, point it at `.venv` and add `src` and
+Webots' Python library (for `from controller import ...`) to the analysis
+paths, e.g. in VS Code `.vscode/settings.json`:
+
+```json
+"python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+"python.analysis.extraPaths": ["src", "C:/Program Files/Webots/lib/controller/python"]
+```
+
 ## Checks
 
 The same four run on GitHub for every push:

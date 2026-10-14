@@ -12,3 +12,6 @@ logs/
 
 # Written by make_world.py with this machine's absolute venv path
 controllers/*/runtime.ini
+
+# Editor settings are personal (see README for the Webots import paths)
+.vscode/

@@ -1,3 +1,5 @@
+# "heigth" below is a deliberate typo: the loader must catch misspelled keys.
+# cspell:ignore heigth
 from pathlib import Path
 
 import pytest
