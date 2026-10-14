@@ -154,9 +154,10 @@ rects = [
 
 The world generator computes the union and its outline with shapely (only
 the generator depends on it; the `.wbt` contains plain wall boxes). It
-rejects rectangles that don't connect (the union falls apart in pieces), A
-or C outside the arena, and an A too small for n drones at the minimum
-spacing.
+rejects rectangles that don't connect (the union falls apart in pieces) and
+A or C outside the arena. Whether A can hold n drones isn't checked on the
+map, which doesn't know n; the spawn step simply fails if it can't place
+them.
 
 Turned down:
 - a polygon outline (listing corners by hand is error-prone; rectangles are
@@ -286,9 +287,46 @@ build. Turned down: a committed `runtime.ini` reading an environment
 variable (a manual step on every machine), and controllers on the system
 Python with `src/` added by hand (loses the pinned package versions).
 
+## 2026-10-14 · Course builder
+
+`build_course()` (`src/maps/course.py`) turns a `Map` into a `Course`:
+concrete boundary walls, map walls and pillars, plus the sectors.
+
+- **Boundary walls.** The union of the arena rectangles only has horizontal
+  and vertical edges, so each edge becomes one axis-aligned box, 0.1 m
+  thick, just outside the free space. Boxes are stretched by the thickness
+  at convex corners (to close them) but not at concave ones (where they
+  would poke into the hall).
+- **Forests** (`src/maps/forest.py`): rejection sampling with the forest's
+  seed; each pillar keeps `min_gap` from other pillars, the map walls and
+  the arena boundary, and stays out of sectors A and C. Forests are grown
+  in file order, each avoiding the pillars already placed.
+- **Checks that need geometry:** the rectangles form one piece; A and C are
+  inside the arena and don't overlap; no hand-placed obstacle leaves the
+  arena or overlaps A or C; and **C is reachable from A** through a passage
+  at least 0.2 m wide (twice `DRONE_RADIUS`). Seen from above: the free
+  space minus the obstacle footprints, shrunk by the drone's radius, is
+  where a drone's centre can be; A and C must lie in the same piece of it.
+  Until phase 4 every obstacle blocks, whatever its height, because the
+  flock flies at a fixed altitude the map doesn't know. Tested on an L hall
+  and on a ring track (an arena with a hole, which gets walls around the
+  hole too).
+- shapely is imported only by `course.py` and `forest.py`; `maps/__init__`
+  doesn't export them, so importing `maps` doesn't pull in shapely.
+
+The first example map asked for 15 pillars that couldn't fit with a 0.8 m
+gap in a 4 m wide hall (the gap also applies to the side walls). Default
+maps are now large (the example is a 40 x 8 m hall turning into a 30 x 8 m
+one), so fitting is never the problem while the behaviour is being
+developed; narrower maps come later, as experiments.
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?
   Default: not; marked leaders could be a variant.
 - Do drones yaw to face their velocity (needed for steer-to-avoid with the
   front sensor)?
+- `DRONE_RADIUS = 0.1` makes the reachability check permissive: a 0.2 m
+  passage lets one drone through, not a flock. Raise it?
+- Phase 4: which obstacles can be flown over in the reachability check
+  (today every obstacle blocks).
