@@ -348,6 +348,30 @@ seed always give the same swarm.
 - If A can't hold n drones, the error says how many fit. The example map's
   A is 11 x 6 m: random placement fits 51-58 drones at 1 m spacing.
 
+## 2026-10-14 · Writing the world file
+
+`render_world(course, swarm, title, ir_range=3.0)` (`src/worldgen/wbt.py`)
+returns the `.wbt` text: one small function per kind of node.
+
+- Obstacles and boundary walls are static `Solid`s (a `boundingObject` but
+  no `physics`, so they collide but never move); full-height ones reach the
+  ceiling. Colours: grey boundary, orange obstacles.
+- Sectors A (green) and C (gold) are see-through patches on the floor,
+  visual only.
+- Each drone is a `Crazyflie` standing on the floor (`DEF DRONE_<id>`,
+  name `drone_<id>`, controller `drone`). Its `customData` is compact JSON:
+  `{"altitude": 1.2}` for followers, plus `"goal": [x_min, y_min, x_max,
+  y_max]` for leaders. The IR emitter and receiver (infra-red, channel 1,
+  range `ir_range`) go in `extensionSlot`.
+- The `referee` (supervisor) gets `--sector-a`, `--sector-c` and
+  `--ceiling` in `controllerArgs`.
+- The viewpoint looks at the centre of the floor from the south-east,
+  tilted down, far enough to fit the floor's diagonal.
+
+Checked in Webots R2025a: the generated example world loads with no
+warnings, the referee reads its arguments and every drone's `customData`
+arrives intact (JSON quotes escaped correctly).
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?
@@ -356,5 +380,7 @@ seed always give the same swarm.
   front sensor)?
 - `DRONE_RADIUS = 0.1` makes the reachability check permissive: a 0.2 m
   passage lets one drone through, not a flock. Raise it?
+- IR range: 3 m is a placeholder, to tune in phase 1 against the flock's
+  spacing. Also to verify then: whether a drone's own body blocks its IR.
 - Phase 4: which obstacles can be flown over in the reachability check
   (today every obstacle blocks).
