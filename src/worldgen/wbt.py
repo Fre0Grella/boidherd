@@ -24,14 +24,18 @@ EXTERNPROTOS = (
 CRAZYFLIE_REST_Z = 0.015  # the Crazyflie proto's height when standing on the floor
 IR_CHANNEL = 1
 
-GREY = (0.75, 0.75, 0.75)  # arena boundary
+FLOOR_TILE = 4.0  # metres; Webots' default 0.5 flickers when zoomed out
+GREY = (0.55, 0.57, 0.6)  # arena boundary, darker than the floor
 ORANGE = (0.9, 0.45, 0.1)  # obstacles
 GREEN = (0.1, 0.7, 0.2)  # sector A
 GOLD = (1.0, 0.8, 0.0)  # sector C
 
 
 def render_world(
-    course: Course, swarm: tuple[Drone, ...], title: str, ir_range: float = 3.0
+    course: Course,
+    swarm: tuple[Drone, ...],
+    title: str,
+    ir_range: float = 3.0,
 ) -> str:
     """The whole .wbt file. `ir_range`: how far the infra-red packets carry, metres."""
     nodes = [
@@ -101,26 +105,48 @@ def _axis_angle(yaw: float, pitch: float) -> tuple[tuple[float, float, float], f
 
 
 def _floor(floor: Rect) -> str:
+    """Webots' own checkerboard, with tiles large enough not to flicker from far away."""
     cx, cy = floor.center
     return (
         "Floor {\n"
         f"  translation {_num(cx)} {_num(cy)} 0\n"
         f"  size {_num(floor.width)} {_num(floor.depth)}\n"
-        "  tileSize 1 1\n"
+        f"  tileSize {_num(FLOOR_TILE)} {_num(FLOOR_TILE)}\n"
         "}\n"
     )
 
 
 def _sector_marker(sector: Sector, name: str, color: tuple[float, float, float]) -> str:
-    """A see-through patch on the floor: visual only, nothing collides with it."""
+    """A glowing patch on the floor and a see-through box over the sector's altitude band.
+
+    Visual only: no boundingObject, so nothing collides with it and it blocks
+    neither IR nor the distance sensors.
+    """
     cx, cy = sector.area.center
+    w, d = _num(sector.area.width), _num(sector.area.depth)
+    z_min, z_max = sector.z
     return (
         f"DEF {name.upper().replace(' ', '_')} Pose {{\n"
-        f"  translation {_num(cx)} {_num(cy)} 0.001\n"
+        f"  translation {_num(cx)} {_num(cy)} 0\n"
         "  children [\n"
-        "    Shape {\n"
-        f"      appearance {_appearance(color, transparency=0.5)}\n"
-        f"      geometry Plane {{ size {_num(sector.area.width)} {_num(sector.area.depth)} }}\n"
+        "    Pose {\n"
+        "      translation 0 0 0.01\n"  # high enough to avoid z-fighting from far away
+        "      children [\n"
+        "        Shape {\n"
+        f"          appearance {_appearance(color, transparency=0.25, glow=0.6)}\n"
+        f"          geometry Plane {{ size {w} {d} }}\n"
+        "        }\n"
+        "      ]\n"
+        "    }\n"
+        "    Pose {\n"
+        f"      translation 0 0 {_num((z_min + z_max) / 2)}\n"
+        "      children [\n"
+        "        Shape {\n"
+        f"          appearance {_appearance(color, transparency=0.85, glow=0.3)}\n"
+        f"          geometry Box {{ size {w} {d} {_num(max(z_max - z_min, 0.02))} }}\n"
+        "          castShadows FALSE\n"
+        "        }\n"
+        "      ]\n"
         "    }\n"
         "  ]\n"
         "}\n"
@@ -208,21 +234,41 @@ def _drone(drone: Drone, goal: Sector, ir_range: float) -> str:
         '      type "infra-red"\n'
         f"      channel {IR_CHANNEL}\n"
         "    }\n"
+        f"{LEADER_MARKER if drone.leader else ''}"
         "  ]\n"
         "}\n"
     )
 
 
+# A glowing red ball on top of each leader, to tell them apart in the simulation.
+# Visual only: no boundingObject, so no mass, and it blocks neither IR nor sensors.
+LEADER_MARKER = (
+    "    Pose {\n"
+    "      translation 0 0 0.05\n"
+    "      children [\n"
+    "        Shape {\n"
+    "          appearance PBRAppearance { baseColor 1 0.1 0.1 roughness 1 metalness 0"
+    " emissiveColor 1 0.1 0.1 emissiveIntensity 2 }\n"
+    "          geometry Sphere { radius 0.04 }\n"
+    "          castShadows FALSE\n"
+    "        }\n"
+    "      ]\n"
+    "    }\n"
+)
+
+
 # --- values -----------------------------------------------------------------
 
 
-def _appearance(color: tuple[float, float, float], transparency: float = 0.0) -> str:
-    r, g, b = color
+def _appearance(
+    color: tuple[float, float, float], transparency: float = 0.0, glow: float = 0.0
+) -> str:
+    """`glow` makes the colour emissive, so it stays bright whatever the lighting."""
+    rgb = " ".join(_num(c) for c in color)
     extra = f" transparency {_num(transparency)}" if transparency else ""
-    return (
-        f"PBRAppearance {{ baseColor {_num(r)} {_num(g)} {_num(b)}"
-        f" roughness 1 metalness 0{extra} }}"
-    )
+    if glow:
+        extra += f" emissiveColor {rgb} emissiveIntensity {_num(glow)}"
+    return f"PBRAppearance {{ baseColor {rgb} roughness 1 metalness 0{extra} }}"
 
 
 def _rect_arg(r: Rect) -> str:

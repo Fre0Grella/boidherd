@@ -356,8 +356,17 @@ returns the `.wbt` text: one small function per kind of node.
 - Obstacles and boundary walls are static `Solid`s (a `boundingObject` but
   no `physics`, so they collide but never move); full-height ones reach the
   ceiling. Colours: grey boundary, orange obstacles.
-- Sectors A (green) and C (gold) are see-through patches on the floor,
-  visual only.
+- Sectors A (green) and C (gold) are marked by a glowing patch on the
+  floor and a see-through box over their altitude band (A: the takeoff
+  band; C: floor to ceiling). The patch sits 1 cm above the floor: at 2 mm
+  it flickered from far away (z-fighting).
+- Leaders carry a glowing red ball on top, to tell them apart while the
+  simulation runs.
+- The floor keeps Webots' own checkerboard but with `tileSize 4` (2 m
+  squares): the default 0.5 m tiles flicker when the whole course is in
+  view. No custom textures or other assets, by choice.
+- All markers are visual only (no `boundingObject`): no mass, no
+  collisions, invisible to IR and to the distance sensors.
 - Each drone is a `Crazyflie` standing on the floor (`DEF DRONE_<id>`,
   name `drone_<id>`, controller `drone`). Its `customData` is compact JSON:
   `{"altitude": 1.2}` for followers, plus `"goal": [x_min, y_min, x_max,
@@ -371,6 +380,28 @@ returns the `.wbt` text: one small function per kind of node.
 Checked in Webots R2025a: the generated example world loads with no
 warnings, the referee reads its arguments and every drone's `customData`
 arrives intact (JSON quotes escaped correctly).
+
+## 2026-10-14 · make_world.py
+
+`make_world.py` (repo root) is three lines; the command lives in
+`src/worldgen/cli.py`, where `generate()` runs the whole pipeline (load,
+build, spawn, write the world, write `runtime.ini`, optional preview) so
+experiment scripts can call it directly.
+
+- The map argument is a name (`l_hall` -> `maps/l_hall.toml`) or a path;
+  an unknown name lists the maps that exist.
+- Map and spawn errors are printed as one line, without a traceback, and
+  nothing is written. Exit codes: 0 done, 1 bad map or run settings, 2 no
+  such map.
+- `--preview` draws `worlds/<map>.png` with matplotlib: free space, walls,
+  pillars (low ones lighter), sectors, followers and leaders, in metres.
+  matplotlib is imported only when asked, since it is slow to load.
+- `controllers/drone` and `controllers/referee` are placeholders that do
+  nothing, so a generated world opens without errors before phase 1.
+
+Checked end to end: `uv run make_world.py l_hall -n 20 -j 2 -s 7` and
+opening the world in Webots started all 21 controllers with the `.venv`
+Python (through the generated `runtime.ini`), with no errors or warnings.
 
 ## Open questions
 

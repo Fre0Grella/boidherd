@@ -8,7 +8,14 @@ import pytest
 from maps import load_map, parse_map
 from maps.course import Course, build_course
 from worldgen.spawn import place_swarm
-from worldgen.wbt import CRAZYFLIE_REST_Z, _axis_angle, _num, _string, render_world
+from worldgen.wbt import (
+    CRAZYFLIE_REST_Z,
+    LEADER_MARKER,
+    _axis_angle,
+    _num,
+    _string,
+    render_world,
+)
 
 MAPS = Path(__file__).parent.parent / "maps"
 
@@ -115,3 +122,19 @@ def test_numbers_are_short(value: float, text: str):
 
 def test_strings_are_escaped():
     assert _string('say "hi" \\ bye') == '"say \\"hi\\" \\\\ bye"'
+
+
+def test_only_leaders_carry_the_red_marker(world: str):
+    drones = re.split(r"^DEF DRONE_\d+ Crazyflie \{$", world, flags=re.M)[1:]
+    for drone in drones:
+        leader = "goal" in drone  # in customData, quotes are escaped
+        assert (LEADER_MARKER in drone) == leader
+    assert world.count(LEADER_MARKER) == 3
+
+
+def test_sector_boxes_show_the_altitude_band(world: str):
+    # sector A: 11 x 6 m, z from 0.8 to 1.5; sector C: 8 x 6 m, floor to ceiling
+    assert "translation 0 0 1.15\n" in world
+    assert "geometry Box { size 11 6 0.7 }" in world
+    assert "translation 0 0 1.25\n" in world
+    assert "geometry Box { size 8 6 2.5 }" in world
