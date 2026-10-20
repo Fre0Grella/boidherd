@@ -573,6 +573,173 @@ Turned down: building the map online from the sensors (SLAM). The map is
 known, and mapping would become the project. Also turned down: giving the
 path to the followers too, since then there would be no leaders.
 
+## 2026-10-20 · Reynolds rules on the drones: the ideal boid is not the robot
+
+`boids/rules.py` holds the three rules as pure maths (plus drag and a speed
+limit), one world-frame acceleration out, as in Reynolds (1987). Attached
+to the drones as they were, they failed, and why is a result in itself:
+rules that are stable for an ideal boid are not stable on a robot.
+
+**Baseline** (pure rules, flight layer of 2026-10-14; `tools/flock_test.py`,
+20 drones on `square`): calm at 16 s, then neighbouring pairs swung in and
+out with a ~2 s period, wider each time; two drones touched at ~23 s and
+the physics blew up (speeds over 100 m/s).
+
+**Diagnosis.** The rules assume a boid accelerates the instant it is asked
+to. A quadrotor must tilt first, and the tilt controller (gains from
+Webots' example) was slow and underdamped: a tilt step overshot by ~45%
+and peaked after ~0.8 s; on a 13 deg step the motors differed by only
+0.4 rad/s, almost no torque. A stiff spring (separation grows as 1/d^2)
+behind a lagging, resonant actuator oscillates. An offline model with a
+second-order actuator (zeta ~0.25, omega ~4 rad/s) reproduced both the
+failure and a failed patch: a look-ahead term in separation made it worse,
+and that patch also put drone knowledge into the abstract rules. Reverted.
+
+Literature, the same problem: Virágh et al. (2014) model a flying robot by
+its imperfections (controller relaxation time, max acceleration, delay,
+noise) and report delay-induced oscillations that cause collisions even
+in a hovering flock; Forgoston & Schwartz (2008) show such instabilities
+are a Hopf bifurcation. Plan agreed: A) make the drone follow commands
+well; C) command a velocity instead of an acceleration; measure after
+each; then decide B, Virágh's robot-aware rules.
+
+### A: attitude in two nested loops
+
+`flight/control.py` now holds attitude as the Crazyflie firmware does:
+angle error -> wanted rotation rate, capped -> rate error (gyro) -> motor
+differential. Yaw is held at the takeoff heading the same way (before, it
+was only damped). Other changes:
+- **Tilt limit 30 deg** (was 20): holding altitude then needs 1.15x the
+  weight, 56% of a real Crazyflie's thrust. 20 deg is Bitcraze's firmware
+  default in velocity mode; physics stops at 61 deg.
+- **Tilt limited by magnitude**, not per axis, so the direction is kept.
+- **Motors capped at 79.7 rad/s**: the proto's 600 rad/s gives ~117x the
+  weight in thrust, a real Crazyflie 2.1 ~2.07x (60 g thrust, 29 g). The
+  controllers can't use thrust the real drone doesn't have.
+
+What it took (`tools/flight_test.py`, which now reports tilt steps,
+including a 5 m/s^2 push and its 40 deg reversal):
+- A single PD loop tuned fast was clean on steps but flipped the drone on
+  the reversal (tilt overshot to 47 deg, yaw kicked 20 deg, motors pinned).
+- Nested loops alone did not fix it either. Ruled out by experiment: the
+  motor cap (lifting it changed nothing) and the 32 ms step (crashes at
+  4 ms too). What breaks the drone is rotating fast: above ~2 rad/s the
+  inner loop can't brake a rotation in time and yaw couples in. Capping
+  the rate at 1.5 rad/s fixed it.
+
+| tilt step | before | after |
+|---|---|---|
+| small (2 deg): 90% after, overshoot | 0.64 s, 40% | 0.19 s, 3% |
+| hard (~21 deg) | never reached 90% within 1 s | 0.26 s, 4% |
+| reversal (~40 deg swing) | flipped (fast single loop) | 0.48 s, 2% |
+| yaw change, altitude error | - | 0.0 deg, 8 mm |
+
+Checked at four spawn yaws (-47, 54, 95, 153 deg): no crash, yaw held.
+Swarm takeoff unchanged (`takeoff_test` now uses a `hover` controller, so
+it measures takeoff alone).
+
+**The same rules, unchanged, on the new drone** (`flock_test`):
+
+| run | speed at the end | closest pair | groups | crashes |
+|---|---|---|---|---|
+| baseline, 20 drones | blew up | 0.05 m (touched) | - | yes |
+| A, 20 drones, seed 0 | 0.00 m/s | 0.64 m | 3 -> 4 | none |
+| A, 40 drones, seed 3 | 0.01 m/s | 0.61 m | 1 -> 4 | none |
+
+The flock now settles into a lattice (~1 m to the nearest neighbour)
+instead of oscillating. It splits into groups, though, even 40 drones
+that start as one: a matter of the rules (averaged cohesion, no leaders,
+drag), not of stability; for B.
+
+Tools: `--set section.name=value` overrides any setting for one run
+(`util/overrides.py`, passed to the controllers through the environment).
+
+### Time step: 16 ms
+
+Webots' default 32 ms (our choice so far, not a Webots limit) is now 16 ms
+(`worldgen/wbt.py`, `TIME_STEP`): sensors and IR update twice as often,
+and the delay between a neighbour moving and a drone reacting halves. The
+real Crazyflie runs its attitude loops at 500 Hz (2 ms; position at 100 Hz).
+
+| 60 s simulated | 32 ms | 16 ms |
+|---|---|---|
+| 20 drones | 22 s | 39 s (1.8x) |
+| 40 drones | 69 s | 143 s (2.1x) |
+
+Same flock at both (closest pair 0.64 m / 0.61 m, no crash), same tilt
+response (a few % more overshoot at 16 ms). The cost doubles with each
+halving: 8 ms would be ~4x.
+
+Hoped for, not obtained: a higher rotation cap. At 16 ms, as at 32 ms,
+the drone flips above ~2 rad/s (2 rad/s itself overshoots 15-24%), so the
+time step is not what limits rotation. Not the motors either (no
+acceleration limit in the proto, 30 N m max torque). A suspect, the
+proto's propeller torque constant (2.4e-6 against 4e-5 for thrust: a yaw
+torque of 0.06 m per newton, about ten times a real Crazyflie's, figure
+from memory, unchecked), was not confirmed: with yaw control off, weaker or
+stronger, a 3 rad/s cap still crashes, already on the hard push. A lead:
+the direction matters. Spawned at yaw 95 deg, the push is nearly pure roll
+and 3 rad/s is clean (reversal 0.35 s, 7%); at yaw -47 deg it is diagonal
+(roll and pitch both ~20 deg) and crashes. Two candidates: the rate loop
+treats gyro body rates as Euler-angle rates, which at 20 deg of roll and
+pitch leak ~12% into each other; or the X layout, where a diagonal
+rotation is driven by one motor pair only. Cause open; the cap stays at
+1.5 rad/s, clean in every direction at both steps.
+
+### Drone markers
+
+A 10 cm drone is hard to follow in the 3D view. Every drone now carries a
+glowing 15 cm square plate just above it (cyan, red for leaders, replacing
+the leaders' red ball) with a black tab on its front edge. It sits in the
+extensionSlot, so it tilts and turns with the drone: roll and pitch can be
+read off it, the tab tells which is which. Visual only (no
+boundingObject): the same flock run gives the same numbers to the step.
+A little over the drone's 10 cm, so the spacing between drones still looks
+true (30 cm made neighbours look closer than they are). On by default;
+`make_world.py --no-markers` leaves them out.
+
+The floor keeps Webots' checkerboard picture but on a fully matte surface:
+the stock `Parquetry` appearance adds a roughness map (glossy patches) and
+a normal map, and the light glared off the floor at some camera angles.
+
+### C and B: studied, deferred
+
+A was enough: the pure rules are stable on the tuned drone, so the rules
+stay as they are until a problem asks for more. What we would do then, so
+it needn't be studied again:
+
+**C, command a velocity instead of an acceleration.** The flight layer
+would take a wanted velocity v_d and fly a = (v_d - v)/tau, capped at
+a_max (Virágh's robot model; Reynolds 1999 steers the same way:
+desired velocity minus current velocity). The design log's 2026-10-14
+objection ("a floating e-puck") only holds for tau ~ 0. Written out for a
+follower, v_d = mean(v_j) + p_coh * (offset to centre) + v_sep, which
+expands to today's rules with alignment weight 1/tau and `drag` replaced
+by braking when alone: on its own C re-parameterises, it fixes nothing
+new. Its value is as the base for B (Virágh's terms are velocities) and
+to describe the robot by two measurable numbers, tau and a_max.
+
+**B, Virágh's rules adapted to a real robot** (desired velocities, summed,
+|v_d| capped at v_max; d_ij from i to j, d = |d_ij|, d^ = d_ij / d):
+
+    self-propulsion  v_spp = v_flock * v_i / |v_i|          (Virágh, Couzin)
+    separation       v_sep = sum_{d<r_sep} p_sep (r_sep - d) (-d^)  linear, not 1/d
+    alignment        v_ali = sum_j C_frict (v_j - v_i) / max(r_min, d)^2, capped
+    cohesion         v_coh = p_coh * mean_j d_ij, capped  (Reynolds; Virágh has none)
+    leaders only     v_spp = v_flock * unit(C - x_i)
+    walls (phase 3)  steer-to-avoid or Virágh's virtual walls
+
+What each answers: linear separation has no 1/d^2 stiffness and is robust
+to IR distance noise; pairwise friction alignment damps two close drones
+(averaged alignment barely does); per-term caps keep any command bounded.
+Self-propelled followers need walls from the start (the square would be
+flown into). Indicative values at our scale: r_sep ~1 m, p_sep ~1/s,
+C_frict ~0.2 m^2, r_min ~0.5 m, v_flock ~0.5 m/s, tau ~0.5 s.
+
+Revisit if: the flock oscillates again (leaders pulling, higher speeds,
+obstacles); group splitting stops leaders from bringing the flock along
+(phase 2); or IR noise at close range makes separation jumpy.
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?

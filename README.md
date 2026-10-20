@@ -4,8 +4,9 @@ Reynolds boids on simulated Crazyflie drones in Webots: a few informed
 leaders guide a flock through an obstacle course to a goal that only
 they know.
 
-Status: phase 1 (flat flocking). Drones take off and sense each other
-over IR; the Reynolds rules come next. Decisions and their reasons are in
+Status: phase 1 (flat flocking). Drones take off, sense each other over
+IR and flock with Reynolds' rules; adapting the rules to the robot is
+under way. Decisions and their reasons are in
 [docs/design-log.md](docs/design-log.md).
 
 ## Setup
@@ -31,6 +32,7 @@ paths, e.g. in VS Code `.vscode/settings.json`:
 uv run make_world.py l_hall                    # maps/l_hall.toml -> worlds/l_hall.wbt
 uv run make_world.py l_hall -n 20 -j 2 -s 7    # drones, leaders, seed (defaults 10, 1, 0)
 uv run make_world.py l_hall --preview          # also draw worlds/l_hall.png
+uv run make_world.py l_hall --no-markers       # without the coloured plates on the drones
 ```
 
 Then open `worlds/l_hall.wbt` in Webots. Run `make_world.py` once before
@@ -47,7 +49,11 @@ crashes when started from Git Bash):
 uv run tools/flight_test.py      # one drone follows scripted accelerations
 uv run tools/takeoff_test.py     # a whole swarm takes off; -n, --map, --duration
 uv run tools/ir_test.py          # IR neighbour sensing against ground truth
+uv run tools/flock_test.py       # a leaderless swarm flocks: groups, spacing, speed
 ```
+
+Any setting can be changed for one run, e.g.
+`uv run tools/flock_test.py --set boids.cohesion=0.5 flight.kp_angle=8`.
 
 ## Checks
 

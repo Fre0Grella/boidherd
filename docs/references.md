@@ -19,6 +19,31 @@ What each source is used for in the project.
   algorithms and theory. *IEEE Transactions on Automatic Control* 51(3),
   401-420. Flocking on double-integrator agents, virtual leader, obstacles.
 
+## From the ideal boid to a robot
+
+- **Virágh, C. et al. (2014).** Flocking algorithm for autonomous flying
+  robots. *Bioinspiration & Biomimetics* 9, 025012.
+  <https://arxiv.org/abs/1310.3601>. A flying robot modelled by its
+  imperfections (controller relaxation time, max acceleration, delay,
+  noise, refresh rate, range); delay-induced oscillations and collisions;
+  linear repulsion and a pairwise viscous-friction alignment to damp them.
+- **Vásárhelyi, G. et al. (2018).** Optimized flocking of autonomous drones
+  in confined environments. *Science Robotics* 3(20), eaat3536. 30 real
+  drones; flocking parameters tuned by evolutionary optimisation.
+- **Forgoston, E., Schwartz, I. B. (2008).** Delay-induced instabilities in
+  self-propelling swarms. *Physical Review E* 77, 035203.
+  <https://arxiv.org/abs/0712.2950>. The delay-induced transition is a
+  Hopf bifurcation.
+
+## Crazyflie
+
+- Bitcraze, thrust upgrade kit (stock Crazyflie 2.1: 60 g total thrust):
+  <https://www.bitcraze.io/2022/10/thrust-upgrade-kit-for-the-crazyflie-2-1/>
+- crazyflie-firmware, `src/platform/interface/platform_defaults_cf2.h`:
+  mass 29 g (`CF_MASS`), roll/pitch limit 20 deg in velocity mode
+  (`PID_VEL_ROLL_MAX`); attitude held by nested angle and rate PIDs.
+  <https://github.com/bitcraze/crazyflie-firmware>
+
 ## Simulation methodology
 
 - **Pinciroli, C. et al. (2012).** ARGoS: a modular, parallel, multi-engine
