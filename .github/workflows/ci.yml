@@ -7,7 +7,7 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04  # pinned: chosen on purpose, not whenever ubuntu-latest moves
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0  # no major tags since v8; Python comes from .python-version
