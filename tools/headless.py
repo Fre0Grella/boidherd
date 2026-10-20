@@ -5,11 +5,14 @@ started from Git Bash. Only the Webots started here is stopped, together
 with its controllers; a Webots window you have open is left alone.
 """
 
+import json
 import os
 import subprocess
 import time
 from collections.abc import Callable
 from pathlib import Path
+
+from util.overrides import VARIABLE
 
 WEBOTS = Path(os.environ.get("WEBOTS_HOME", r"C:\Program Files\Webots"))
 WEBOTS_EXE = WEBOTS / "msys64" / "mingw64" / "bin" / "webots.exe"
@@ -19,12 +22,21 @@ class RunError(Exception):
     pass
 
 
-def run_until(world: Path, done: Callable[[], bool], timeout: float, port: int = 1297) -> float:
-    """Run `world` (fast, no rendering) until `done()` is true; return the wall-clock seconds."""
+def run_until(
+    world: Path,
+    done: Callable[[], bool],
+    timeout: float,
+    params: dict[str, dict[str, float]] | None = None,
+    port: int = 1297,
+) -> float:
+    """Run `world` (fast, no rendering) until `done()` is true; return the wall-clock seconds.
+
+    `params` overrides settings in every controller (see util/overrides.py)."""
+    env = {**os.environ, VARIABLE: json.dumps(params or {})}
     webots = subprocess.Popen(
         [str(WEBOTS_EXE), "--batch", "--mode=fast", "--no-rendering", "--minimize",
          f"--port={port}", str(world)],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env,
     )  # fmt: skip
     started = time.monotonic()
     try:

@@ -3,7 +3,8 @@
     uv run tools/takeoff_test.py                # 20 drones on the square map, 25 s
     uv run tools/takeoff_test.py --map l_hall -n 40 --duration 30
 
-Builds worlds/takeoff_test.wbt with the real `drone` controller, runs Webots
+Builds worlds/takeoff_test.wbt with the `hover` controller (takeoff only, no
+flocking), runs Webots
 headless until the referee has logged `--duration` simulated seconds, then
 reads logs/takeoff_test.csv and reports per-drone takeoff times, overshoot,
 the closest two drones ever got, drift and crashes. Run it from PowerShell.
@@ -19,6 +20,7 @@ from pathlib import Path
 
 from headless import RunError, run_until
 
+from util.overrides import parse
 from worldgen.cli import generate
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,15 +36,18 @@ def main() -> int:
     parser.add_argument("-s", "--seed", type=int, default=0)
     parser.add_argument("--duration", type=float, default=25.0, help="simulated seconds")
     parser.add_argument("--timeout", type=float, default=300, help="wall-clock seconds")
+    parser.add_argument("--set", nargs="*", default=[], metavar="SECTION.NAME=VALUE",
+                        help="override settings, e.g. flight.kp_tilt=2")  # fmt: skip
     args = parser.parse_args()
 
     result = generate(
         ROOT / "maps" / f"{args.map}.toml", ROOT / "worlds", ROOT / "controllers",
-        n=args.n, j=0, seed=args.seed, name="takeoff_test",
+        n=args.n, j=0, seed=args.seed, name="takeoff_test", controller="hover",
     )  # fmt: skip
     LOG.unlink(missing_ok=True)
     try:
-        wall = run_until(result.world, lambda: _last_time() >= args.duration, args.timeout)
+        wall = run_until(result.world, lambda: _last_time() >= args.duration, args.timeout,
+                        parse(args.set))  # fmt: skip
     except RunError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
