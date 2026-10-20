@@ -90,6 +90,10 @@ Each phase is a complete deliverable on its own.
 2. Flat + j leaders, empty map: the n x j experiment (core result).
 3. Obstacles: pillars, then a wall with a gap; steer-to-avoid.
 4. 3D manoeuvres: `VERTICAL_GAIN > 0`, obstacles to fly over.
+5. Hybrid leaders: before setting off, each leader plans a path to C on
+   the known map (deliberative layer), then pulls toward its next waypoint
+   instead of straight at C; Reynolds' rules and steer-to-avoid stay the
+   reactive layer. Followers don't change.
 
 Metrics, mostly from the supervisor's ground truth: fraction of drones in
 C, time to arrival, number of separate groups, minimum inter-drone
@@ -531,6 +535,44 @@ at 1 m: Webots' IR is kinder than real IR here. Walls blocking IR is still
 to check (phase 3). Without the body-to-world rotation the direction error
 would be about the tilt itself (up to 6 deg); measured: 0.4 deg mean.
 
+## 2026-10-15 · Phase 5: hybrid control for the leaders
+
+Up to phase 4 a leader only knows a direction: an extra pull straight
+toward C. That is purely reactive control, and it fails wherever the
+straight line to C crosses a wall. In the L hall, a leader still in the
+first hall is pulled into the outer wall of the corner; steer-to-avoid
+only slides it along the wall, a local minimum like a potential field's.
+The flock then gets stuck with it, or reaches C by chance.
+
+Phase 5 gives the leaders a hybrid architecture (deliberative on top of
+reactive, the hybrid control of the course's lecture on control
+architectures):
+
+- **Deliberative layer**, once, while the leader takes off: it plans a path
+  from its position to C on the map of the course. The planning space is
+  the one of the reachability check (free space minus the obstacles, shrunk
+  by a clearance), so the planner starts from `_check_reachable`'s geometry.
+- **Reactive layer**: Reynolds' rules and steer-to-avoid, unchanged; the
+  goal pull now aims at the current waypoint instead of at C. The leader
+  aims at the farthest waypoint still in line of sight, so being pushed off
+  the path by the flock doesn't need replanning.
+- **Followers are untouched**: they don't know a map exists, so the n x j
+  question stays the same; only what a leader knows changes.
+
+Experiment: reactive leaders (pull toward C) against hybrid leaders, with
+the same maps, n, j and seeds. Hypotheses, fixed before running: on a
+straight hall, no difference; on maps where the straight line to C hits a
+wall (the L hall, a dead end facing C), hybrid leaders bring a larger
+fraction of the flock into C, sooner. Secondary: does a planned path lower
+the j needed?
+
+Depends on phase 3 (obstacles, steer-to-avoid), not on phase 4: it can
+come before 3D, planning at fixed altitude where every obstacle blocks.
+
+Turned down: building the map online from the sensors (SLAM). The map is
+known, and mapping would become the project. Also turned down: giving the
+path to the followers too, since then there would be no leaders.
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?
@@ -543,3 +585,13 @@ would be about the tilt itself (up to 6 deg); measured: 0.4 deg mean.
   spacing. (A drone's own body does not block its IR: checked, see above.)
 - Phase 4: which obstacles can be flown over in the reachability check
   (today every obstacle blocks).
+- Phase 5, planner: A* on a grid (simple, any shape) or shortest paths on a
+  visibility graph of the shrunk free space (exact, few waypoints; shapely
+  is already a dependency)?
+- Phase 5, where the map comes from: the generator writes the course into
+  the leaders' `customData` and the leader plans (controllers still never
+  parse map files), or the generator plans and writes only the waypoints
+  (simpler, but then the robot no longer deliberates). Leaning: the first.
+- Phase 5, clearance: a path hugging the inner corner drags the flock into
+  it, and the flock is wider when n is larger. Plan with a clearance of
+  about the flock's radius, not `DRONE_RADIUS`?
