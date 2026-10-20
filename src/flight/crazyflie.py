@@ -56,7 +56,8 @@ class Crazyflie:
 
     def attitude(self) -> Attitude:
         roll, pitch, yaw = self.imu.getRollPitchYaw()
-        return Attitude(roll, pitch, yaw, self.gyro.getValues()[2], self.gps.getValues()[2])
+        roll_rate, pitch_rate, yaw_rate = self.gyro.getValues()
+        return Attitude(roll, pitch, yaw, yaw_rate, self.gps.getValues()[2], roll_rate, pitch_rate)
 
     def position(self) -> Vec3:
         return Vec3(*self.gps.getValues())

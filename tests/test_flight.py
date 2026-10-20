@@ -59,6 +59,33 @@ def test_first_step_with_zero_dt_is_safe():
     assert all(math.isfinite(s) for s in m)
 
 
+def test_wanted_roll_speeds_up_the_motors_on_one_side():
+    m1, m2, m3, m4 = MotorMixer(FlightParams()).motors(0.032, 0.2, 0.0, 1.0, LEVEL)
+    assert m3 > m1 and m4 > m2  # +roll_cmd goes to m3 and m4 (signs from Webots' example)
+
+
+def test_the_rotation_rate_asked_for_is_capped():
+    p = FlightParams(kp_angle=10.0, max_rate=1.0)
+    big = MotorMixer(p).motors(0.032, 0.5, 0.0, 1.0, LEVEL)
+    huge = MotorMixer(p).motors(0.032, 0.9, 0.0, 1.0, LEVEL)
+    assert big == pytest.approx(huge)  # both ask for the capped 1 rad/s
+
+
+def test_already_rotating_at_the_wanted_rate_needs_no_torque():
+    p = FlightParams(kp_angle=5.0)
+    rolling = Attitude(roll=0.0, pitch=0.0, yaw=0.0, yaw_rate=0.0, altitude=1.0, roll_rate=1.0)
+    m = MotorMixer(p).motors(0.032, 0.2, 0.0, 1.0, rolling)  # wants 5 * 0.2 = 1 rad/s
+    assert m[0] == pytest.approx(m[2])
+
+
+def test_heading_is_held_where_it_started():
+    mixer = MotorMixer(FlightParams())
+    mixer.motors(0.032, 0.0, 0.0, 1.0, LEVEL)  # takes off facing yaw 0
+    turned = Attitude(roll=0.0, pitch=0.0, yaw=0.3, yaw_rate=0.0, altitude=1.0)
+    m1, m2, _, _ = mixer.motors(0.032, 0.0, 0.0, 1.0, turned)
+    assert m2 > m1  # -yaw_cmd: m2 and m4 speed up to turn back
+
+
 def test_hover_speed_matches_the_proto_physics():
     assert 4 * 4e-5 * HOVER_SPEED**2 == pytest.approx(0.05 * 9.81)
 

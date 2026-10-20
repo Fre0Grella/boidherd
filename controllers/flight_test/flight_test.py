@@ -9,9 +9,10 @@ and, when the script is over, logs/flight_test.done; it never quits Webots.
 import csv
 from pathlib import Path
 
-from flight import Autopilot, Phase
+from flight import Autopilot, FlightParams, Phase, tilt_for
 from flight.crazyflie import Crazyflie
 from util import Vec3
+from util.overrides import overrides
 
 # (seconds from the start of the script, acceleration) - each holds until the next
 SCRIPT = [
@@ -21,8 +22,11 @@ SCRIPT = [
     (7.0, Vec3(0, 0.5, 0)),  # speed up along +y
     (9.0, Vec3(0, -0.5, 0)),  # brake
     (11.0, Vec3()),  # hold: how much does it drift?
+    (16.0, Vec3(5.0, 0, 0)),  # hard push near the 30 deg limit (5.7 m/s^2): a big tilt step
+    (17.0, Vec3(-5.0, 0, 0)),  # hard brake
+    (18.0, Vec3()),
 ]
-SCRIPT_END = 16.0
+SCRIPT_END = 20.0
 SETTLE = 2.0  # seconds of hovering before the script starts
 
 logs = Path(__file__).resolve().parents[2] / "logs"
@@ -30,14 +34,15 @@ logs.mkdir(exist_ok=True)
 (logs / "flight_test.done").unlink(missing_ok=True)
 
 drone = Crazyflie()
-pilot = Autopilot(altitude=float(str(drone.config["altitude"])))
+pilot = Autopilot(float(str(drone.config["altitude"])), FlightParams(**overrides("flight")))
 hover_since: float | None = None
 last_time = drone.time
 
 with open(logs / "flight_test_telemetry.csv", "w", newline="") as f:
     log = csv.writer(f)
     log.writerow(["t", "phase", "x", "y", "z", "vx", "vy", "vz",
-                  "roll", "pitch", "yaw", "ax_cmd", "ay_cmd", "motor"])  # fmt: skip
+                  "roll", "pitch", "yaw", "ax_cmd", "ay_cmd", "roll_cmd", "pitch_cmd",
+                  "gx", "gy", "gz", "motor_min", "motor_max"])  # fmt: skip
     while drone.step():
         t = drone.time
         now = drone.attitude()
@@ -54,8 +59,11 @@ with open(logs / "flight_test_telemetry.csv", "w", newline="") as f:
         last_time = t
 
         p, v, c = drone.position(), drone.velocity(), command or Vec3()
+        wanted = tilt_for(c, now.yaw, pilot.p.max_tilt) if command is not None else (0.0, 0.0)
+        gx, gy, gz = drone.gyro.getValues()
         log.writerow([f"{t:.3f}", pilot.phase.value,
                       *(f"{x:.4f}" for x in (p.x, p.y, p.z, v.x, v.y, v.z)),
-                      *(f"{a:.4f}" for a in (now.roll, now.pitch, now.yaw, c.x, c.y)),
-                      f"{sum(motors) / 4:.2f}"])  # fmt: skip
+                      *(f"{a:.4f}" for a in (now.roll, now.pitch, now.yaw, c.x, c.y, *wanted)),
+                      f"{gx:.4f}", f"{gy:.4f}", f"{gz:.4f}",
+                      f"{min(motors):.2f}", f"{max(motors):.2f}"])  # fmt: skip
         f.flush()

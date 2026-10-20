@@ -1,7 +1,7 @@
 """Fly one drone through a fixed list of accelerations and report how well it follows.
 
-    uv run tools/flight_test.py                 # Webots' default 32 ms time step
-    uv run tools/flight_test.py --time-step 16
+    uv run tools/flight_test.py                 # the project's 16 ms time step
+    uv run tools/flight_test.py --time-step 32  # Webots' default
 
 Builds worlds/flight_test.wbt (map `square`, one drone, controller
 `flight_test`), runs Webots headless until the controller writes
@@ -18,7 +18,9 @@ from pathlib import Path
 
 from headless import RunError, run_until
 
+from util.overrides import parse
 from worldgen.cli import generate
+from worldgen.wbt import TIME_STEP
 
 ROOT = Path(__file__).resolve().parents[1]
 LOGS = ROOT / "logs"
@@ -32,12 +34,17 @@ CHECKPOINTS = [
     (11.0, (0.0, 0.0), "after braking"),
 ]
 
+# script windows (s from the script start) whose start is a step in the wanted tilt
+TILT_STEPS = [(0.0, 2.0, "gentle push"), (16.0, 17.0, "hard push"), (17.0, 18.0, "reversal")]
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Fly one drone through fixed accelerations.")
-    parser.add_argument("--time-step", type=int, default=32, help="ms (default 32)")
+    parser.add_argument("--time-step", type=int, default=TIME_STEP, help="ms")
     parser.add_argument("--seed", type=int, default=3, help="spawn seed (sets the yaw)")
     parser.add_argument("--timeout", type=float, default=180, help="wall-clock seconds")
+    parser.add_argument("--set", nargs="*", default=[], metavar="SECTION.NAME=VALUE",
+                        help="override settings, e.g. flight.kp_tilt=2")  # fmt: skip
     args = parser.parse_args()
 
     result = generate(
@@ -51,7 +58,7 @@ def main() -> int:
     done = LOGS / "flight_test.done"
     done.unlink(missing_ok=True)
     try:
-        wall = run_until(result.world, done.exists, args.timeout)
+        wall = run_until(result.world, done.exists, args.timeout, parse(args.set))
     except RunError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
@@ -83,6 +90,20 @@ def report(target: float) -> None:
         r = at(seconds)
         print(f"  t+{seconds:>4.1f} s {label:<14} expected ({ex:+.2f}, {ey:+.2f})  "
               f"measured ({float(r['vx']):+.2f}, {float(r['vy']):+.2f})")  # fmt: skip
+    for first, last, label in TILT_STEPS:
+        window = [r for r in follow if first <= float(r["t"]) - t0 < last]
+        for axis in ("roll", "pitch"):
+            middle = window[len(window) // 2]  # the window's command, after the step
+            step = [
+                r
+                for r in window
+                if (r["ax_cmd"], r["ay_cmd"]) == (middle["ax_cmd"], middle["ay_cmd"])
+            ]
+            wanted = float(middle[f"{axis}_cmd"])  # moves a little with yaw: the middle one
+            times = [float(r["t"]) - float(step[0]["t"]) for r in step]
+            print(tilt_step(label, axis, times, wanted, [float(r[axis]) for r in step]))
+    print(f"motors:  {min(float(r['motor_min']) for r in follow):.1f} to "
+          f"{max(float(r['motor_max']) for r in follow):.1f} rad/s while following")  # fmt: skip
     start, end = at(11.0), at(16.0)
     moved = math.hypot(float(end["x"]) - float(start["x"]), float(end["y"]) - float(start["y"]))
     tilt = max(max(abs(float(r["roll"])), abs(float(r["pitch"]))) for r in follow)
@@ -93,6 +114,19 @@ def report(target: float) -> None:
           f"{1000 * z_err:.0f} mm, yaw changed {math.degrees(yaw_change):.1f} deg")  # fmt: skip
     crashed = any(float(r["z"]) < 0.1 for r in follow)
     print("crash:   " + ("YES, the drone hit the floor" if crashed else "none"))
+
+
+def tilt_step(label: str, axis: str, t: list[float], target: float, measured: list[float]) -> str:
+    """How one tilt axis followed a step to `target`: time to 90%, overshoot, and where it
+    sat over the last 0.3 s of the window, all relative to the step."""
+    if abs(target) < 1e-3:
+        return f"tilt:    {label}, {axis}: no step on this axis"
+    share = [m / target for m in measured]
+    rise = next((ti for ti, s in zip(t, share, strict=True) if s >= 0.9), math.inf)
+    late = [s for ti, s in zip(t, share, strict=True) if ti >= t[-1] - 0.3]
+    return (f"tilt:    {label}, {axis} step to {math.degrees(target):+.1f} deg: "
+            f"90% after {rise:.2f} s, overshoot {100 * max(max(share) - 1, 0):.0f}%, "
+            f"settles at {100 * sum(late) / len(late):.0f}%")  # fmt: skip
 
 
 if __name__ == "__main__":
