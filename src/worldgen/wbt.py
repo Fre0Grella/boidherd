@@ -23,12 +23,19 @@ EXTERNPROTOS = (
 )
 CRAZYFLIE_REST_Z = 0.015  # the Crazyflie proto's height when standing on the floor
 IR_CHANNEL = 1
+# Webots' basic time step, ms; every controller steps at this rate. Half Webots' default
+# 32 ms: sensors and IR update twice as often, for ~2x the simulation time (design log)
+TIME_STEP = 16
 
 FLOOR_TILE = 4.0  # metres; Webots' default 0.5 flickers when zoomed out
+FLOOR_TEXTURE = f"{PROTOS}/appearances/protos/textures/parquetry/chequered_parquetry_base_color.jpg"
 GREY = (0.55, 0.57, 0.6)  # arena boundary, darker than the floor
 ORANGE = (0.9, 0.45, 0.1)  # obstacles
 GREEN = (0.1, 0.7, 0.2)  # sector A
 GOLD = (1.0, 0.8, 0.0)  # sector C
+CYAN = (0.0, 0.9, 1.0)  # followers' markers
+RED = (1.0, 0.1, 0.1)  # leaders' markers
+BLACK = (0.02, 0.02, 0.02)  # the front tab of every marker: stands out on cyan and red
 
 
 def render_world(
@@ -37,13 +44,15 @@ def render_world(
     title: str,
     ir_range: float = 3.0,
     controller: str = "drone",
-    time_step: int = 32,
+    time_step: int = TIME_STEP,
+    markers: bool = True,
 ) -> str:
     """The whole .wbt file.
 
     `ir_range`: how far the infra-red packets carry, metres.
     `controller`: the drones' controller (another one only for tests and tools).
     `time_step`: Webots' basic time step, milliseconds.
+    `markers`: a coloured plate on every drone (`drone_marker`), to see them better.
     """
     nodes = [
         _header(),
@@ -57,7 +66,7 @@ def render_world(
         *(_wall(w, f"wall {i}", course.ceiling, ORANGE) for i, w in enumerate(course.walls)),
         *(_pillar(p, f"pillar {i}", course.ceiling) for i, p in enumerate(course.pillars)),
         _referee(course),
-        *(_drone(d, course.sector_c, ir_range, controller) for d in swarm),
+        *(_drone(d, course.sector_c, ir_range, controller, markers) for d in swarm),
     ]
     return "\n".join(nodes)
 
@@ -112,13 +121,23 @@ def _axis_angle(yaw: float, pitch: float) -> tuple[tuple[float, float, float], f
 
 
 def _floor(floor: Rect) -> str:
-    """Webots' own checkerboard, with tiles large enough not to flicker from far away."""
+    """Webots' own checkerboard, with tiles large enough not to flicker from far away.
+
+    Its picture only, on a fully matte surface: the stock `Parquetry` adds a
+    roughness map (glossy patches) and a normal map, which made the light glare
+    off the floor at some camera angles.
+    """
     cx, cy = floor.center
     return (
         "Floor {\n"
         f"  translation {_num(cx)} {_num(cy)} 0\n"
         f"  size {_num(floor.width)} {_num(floor.depth)}\n"
         f"  tileSize {_num(FLOOR_TILE)} {_num(FLOOR_TILE)}\n"
+        "  appearance PBRAppearance {\n"
+        f"    baseColorMap ImageTexture {{ url [ {_string(FLOOR_TEXTURE)} ] }}\n"
+        "    roughness 1\n"
+        "    metalness 0\n"
+        "  }\n"
         "}\n"
     )
 
@@ -223,7 +242,7 @@ def _referee(course: Course) -> str:
     )
 
 
-def _drone(drone: Drone, goal: Sector, ir_range: float, controller: str) -> str:
+def _drone(drone: Drone, goal: Sector, ir_range: float, controller: str, marker: bool) -> str:
     x, y = drone.xy
     data: dict[str, object] = {"altitude": round(drone.altitude, 4)}
     if drone.leader:
@@ -248,27 +267,48 @@ def _drone(drone: Drone, goal: Sector, ir_range: float, controller: str) -> str:
         '      type "infra-red"\n'
         f"      channel {IR_CHANNEL}\n"
         "    }\n"
-        f"{LEADER_MARKER if drone.leader else ''}"
+        f"{drone_marker(drone.leader) if marker else ''}"
         "  ]\n"
         "}\n"
     )
 
 
-# A glowing red ball on top of each leader, to tell them apart in the simulation.
-# Visual only: no boundingObject, so no mass, and it blocks neither IR nor sensors.
-LEADER_MARKER = (
-    "    Pose {\n"
-    "      translation 0 0 0.05\n"
-    "      children [\n"
-    "        Shape {\n"
-    "          appearance PBRAppearance { baseColor 1 0.1 0.1 roughness 1 metalness 0"
-    " emissiveColor 1 0.1 0.1 emissiveIntensity 2 }\n"
-    "          geometry Sphere { radius 0.04 }\n"
-    "          castShadows FALSE\n"
-    "        }\n"
-    "      ]\n"
-    "    }\n"
-)
+MARKER_SIZE = 0.15  # m: a little over the drone's 10 cm, so spacing still looks true
+
+
+def drone_marker(leader: bool) -> str:
+    """A glowing square plate just above the drone (red for leaders, cyan otherwise), with
+    a black tab on its front edge (+x of the body).
+
+    It sits in the drone's extensionSlot, so it moves, tilts and turns with the
+    drone: roll and pitch can be read off it, and the tab tells them apart. Visual
+    only: no boundingObject, so no mass, and it blocks neither IR nor sensors.
+    """
+    s = MARKER_SIZE
+    plate = _appearance(RED if leader else CYAN, transparency=0.3, glow=1.5)
+    tab = _appearance(BLACK)  # no glow, so it stays dark
+    return (
+        "    Pose {\n"
+        "      translation 0 0 0.04\n"
+        "      children [\n"
+        "        Shape {\n"
+        f"          appearance {plate}\n"
+        f"          geometry Box {{ size {_num(s)} {_num(s)} 0.005 }}\n"
+        "          castShadows FALSE\n"
+        "        }\n"
+        "        Pose {\n"
+        f"          translation {_num(s * 0.4)} 0 0.004\n"
+        "          children [\n"
+        "            Shape {\n"
+        f"              appearance {tab}\n"
+        f"              geometry Box {{ size {_num(s / 5)} {_num(s / 2)} 0.005 }}\n"
+        "              castShadows FALSE\n"
+        "            }\n"
+        "          ]\n"
+        "        }\n"
+        "      ]\n"
+        "    }\n"
+    )
 
 
 # --- values -----------------------------------------------------------------

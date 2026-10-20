@@ -10,10 +10,10 @@ from maps.course import Course, build_course
 from worldgen.spawn import place_swarm
 from worldgen.wbt import (
     CRAZYFLIE_REST_Z,
-    LEADER_MARKER,
     _axis_angle,
     _num,
     _string,
+    drone_marker,
     render_world,
 )
 
@@ -124,12 +124,14 @@ def test_strings_are_escaped():
     assert _string('say "hi" \\ bye') == '"say \\"hi\\" \\\\ bye"'
 
 
-def test_only_leaders_carry_the_red_marker(world: str):
+def test_every_drone_carries_a_marker_red_for_leaders(world: str):
     drones = re.split(r"^DEF DRONE_\d+ Crazyflie \{$", world, flags=re.M)[1:]
     for drone in drones:
         leader = "goal" in drone  # in customData, quotes are escaped
-        assert (LEADER_MARKER in drone) == leader
-    assert world.count(LEADER_MARKER) == 3
+        assert drone_marker(leader) in drone
+    assert world.count(drone_marker(True)) == 3
+    assert world.count(drone_marker(False)) == 9
+    assert drone_marker(True) != drone_marker(False)
 
 
 def test_sector_boxes_show_the_altitude_band(world: str):

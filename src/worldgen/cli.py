@@ -18,7 +18,7 @@ from maps.course import Course, build_course
 
 from .runtime import write_runtime_inis
 from .spawn import Drone, SpawnError, place_swarm
-from .wbt import render_world
+from .wbt import TIME_STEP, render_world
 
 
 @dataclass(frozen=True)
@@ -39,12 +39,14 @@ def generate(
     preview: bool = False,
     name: str | None = None,
     controller: str = "drone",
-    time_step: int = 32,
+    time_step: int = TIME_STEP,
+    markers: bool = True,
 ) -> Generated:
     """Load, check, build and write: worlds/<name>.wbt (and .png with `preview`).
 
     `name` defaults to the map's name; `controller` and `time_step` are for
     test tools (see `render_world`), the command line always uses the defaults.
+    `markers`: a coloured plate on every drone, to see them better.
     """
     course = build_course(load_map(map_file))
     swarm = place_swarm(course, n=n, j=j, seed=seed)
@@ -52,7 +54,9 @@ def generate(
 
     worlds.mkdir(parents=True, exist_ok=True)
     world = worlds / f"{name or map_file.stem}.wbt"
-    text = render_world(course, swarm, title, controller=controller, time_step=time_step)
+    text = render_world(
+        course, swarm, title, controller=controller, time_step=time_step, markers=markers
+    )
     world.write_text(text, encoding="utf-8")
     write_runtime_inis(controllers)
 
@@ -76,7 +80,7 @@ def main(argv: list[str] | None = None, root: Path | None = None) -> int:
     try:
         result = generate(
             map_file, root / "worlds", root / "controllers",
-            n=args.n, j=args.j, seed=args.seed, preview=args.preview,
+            n=args.n, j=args.j, seed=args.seed, preview=args.preview, markers=args.markers,
         )  # fmt: skip
     except (MapError, SpawnError) as e:
         print(f"error: {e}", file=sys.stderr)
@@ -102,6 +106,10 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("-j", type=int, default=1, help="number of leaders (default 1)")
     p.add_argument("-s", "--seed", type=int, default=0, help="spawn seed (default 0)")
     p.add_argument("--preview", action="store_true", help="also draw worlds/<map>.png")
+    p.add_argument(
+        "--markers", action=argparse.BooleanOptionalAction, default=True,
+        help="a coloured plate on every drone, red for leaders (default: on)",
+    )  # fmt: skip
     return p
 
 
