@@ -740,6 +740,76 @@ Revisit if: the flock oscillates again (leaders pulling, higher speeds,
 obstacles); group splitting stops leaders from bringing the flock along
 (phase 2); or IR noise at close range makes separation jumpy.
 
+## 2026-10-20 · Phase 2: leaders
+
+**Leaders** are ordinary boids with one extra term summed to the same
+Reynolds rules, so they still feel the flock (a lagging flock holds them
+back); followers can't tell them apart (Couzin 2005). The extra term is
+Reynolds' (1999) seek + arrive: steer toward `goal_speed` (0.5 m/s) aimed
+at the centre of C, the wanted speed shrinking within `arrive_radius`
+(3 m) so the leader stops there. Turned down: a constant pull toward C,
+which keeps accelerating the leader up to the speed limit and overshoots C
+into the wall (no wall avoidance before phase 3). A leader computes its
+offset to the goal from GPS and the goal in its customData; the rules only
+get the offset. Leaders set off `goal_after` (10 s) after they start
+hovering, so the flock forms first, as Couzin's groups start formed.
+
+**Drag removed.** Phase 1's `drag` (-0.3 v, a virtual friction, not air
+drag: Webots' Crazyflie has none, it coasts at 0.99 of its speed after 3 s)
+would have made followers lag: with alignment 1/s, each neighbour hop
+behind a leader flies at 1/(1 + 0.3) = 0.77 of the speed ahead of it, so
+the flock stretches and tears. Without drag a leaderless flock keeps its
+drift: wanted, a drifting flock is likelier to meet a leader than one that
+stands still. Turned down: physical drag through Webots (`defaultDamping`),
+a value to tune for no benefit to the research question.
+
+**Map `open`**: one 40 x 20 m room, A 8 x 8 m (about 50 drones fit at 1 m
+spacing, so the swarm starts as one group; `square`'s 4 x 30 m strip
+started 20 drones as three), C 8 x 8 m with its centre 29 m away.
+`flock_test` now takes `-j` and reports how many drones are in C over time
+and when 90% are.
+
+| 20 drones, `open` | groups | cruise | 90% in C | closest pair | crashes |
+|---|---|---|---|---|---|
+| j = 0, 60 s | 1 | (drift, see below) | never | 0.47 m | none |
+| j = 2, 120 s | 1 throughout | 0.50-0.56 m/s, polarization 1.00 | 78.6 s (all 20 by 86 s) | 0.47 m | none |
+
+Leaders set off at ~16 s, so the 29 m took ~63 s. After arriving, the
+flock sloshes a little (0.05-0.15 m/s, no drag to stop the followers) but
+all 20 stay in C.
+
+**Why a leaderless flock speeds up (found).** Without leaders the flock
+lines up by itself (polarization 1.00) and accelerates steadily, ~0.006
+m/s^2 (0.04 to 0.26 m/s in 50 s). Ruled out one by one: a flight-layer bias
+(a lone drone asked for zero drifts by exactly 0.000 m/s, at four yaws), a
+force on a moving drone (the flight test's coast holds 1.0005 m/s), a
+response that depends on direction (every drone at the same yaw: the same
+drift). Logging every drone's command settled it:
+
+| mean over 20 drones, 30-50 s (mm/s^2) | x | y |
+|---|---|---|
+| separation | 0.00 | 0.00 |
+| alignment | ~+0.5 | ~-0.3 |
+| cohesion | -7 to -10 | +7 to +8 |
+| realised (35-55 s) | -5.9 | +5.8 |
+
+The rules ask for it; the drone just flies it. Separation is reciprocal
+(A pushes off B as hard as B off A), so it sums to zero. Reynolds'
+cohesion is not: each drone steers toward the *mean* of *its own*
+neighbours, and an edge drone with 5 and a middle one with 15 average over
+different sets, so a pair's pulls are not equal and opposite and the flock
+keeps a net force. With no drag, the flock settles into a shape whose
+imbalance propels it, in a direction set by chance. Drag used to hide it.
+
+Decision: **keep Reynolds' averaged cohesion** and accept a self-propelled
+flock as a property of the model. Turned down: reciprocal cohesion, a sum
+of k * offset over the neighbours, as Olfati-Saber (2006) builds flocking
+from pairwise symmetric terms precisely to conserve the flock's momentum.
+Consequences to keep in mind: a leaderless flock accelerates toward the
+1 m/s limit in a random direction (and into a wall: no avoidance before
+phase 3), and in leader runs the same push competes with the leaders, so
+the n x j results include it.
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?
