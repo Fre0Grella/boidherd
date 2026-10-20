@@ -1,17 +1,18 @@
-"""Take off a leaderless swarm, let it flock, and measure the flock it forms.
+"""Take off a swarm, let it flock (and its leaders lead), and measure the flock.
 
-    uv run tools/flock_test.py                  # 20 drones on the square map, 60 s
-    uv run tools/flock_test.py -n 40 --duration 90 --seed 3
-    uv run tools/flock_test.py --set boids.cohesion=0.5 flight.kp_tilt=2
+    uv run tools/flock_test.py                  # 20 drones on the open map, no leaders, 60 s
+    uv run tools/flock_test.py -j 2 --duration 120
+    uv run tools/flock_test.py -n 40 -j 4 --seed 3 --set boids.goal_speed=0.4
 
-Builds worlds/flock_test.wbt with the real `drone` controller (no leaders),
-runs Webots headless until the referee has logged `--duration` simulated
-seconds, then reads logs/flock_test.csv. From the moment every drone hovers
-it reports, every 10 s: the number of groups (drones linked when within the
-perception radius), the mean distance to the nearest neighbour, the mean
-speed and the polarization (length of the mean heading: 1 = all fly the same
-way). Then the closest two drones ever got, how close any came to a wall,
-how far the flock's centre drifted, and crashes. Run it from PowerShell.
+Builds worlds/flock_test.wbt with the real `drone` controller, runs Webots
+headless until the referee has logged `--duration` simulated seconds, then
+reads logs/flock_test.csv. From the moment every drone hovers it reports,
+every 10 s: the number of groups (drones linked when within the perception
+radius), the mean distance to the nearest neighbour, the mean speed, the
+polarization (length of the mean heading: 1 = all fly the same way) and how
+many drones are in sector C. Then when 90% of them were in C, the closest
+two drones ever got, how close any came to a wall, how far the flock's
+centre drifted, and crashes. Run it from PowerShell.
 """
 
 import argparse
@@ -27,6 +28,7 @@ from shapely.geometry import Point
 from shapely.geometry.base import BaseGeometry
 
 from boids import BoidParams
+from maps.model import Rect
 from util.overrides import parse
 from worldgen.cli import generate
 from worldgen.wbt import TIME_STEP
@@ -36,14 +38,16 @@ LOG = ROOT / "logs" / "flock_test.csv"
 DRONE_DIAMETER = 0.1  # m, the Crazyflie's collision cylinder (radius 5 cm)
 HOVER_TOLERANCE = 0.05  # m
 REPORT_EVERY = 10.0  # s
+ARRIVED = 0.9  # share of the drones in C that counts as the flock having arrived
 
 State = tuple[float, float, float, float, float, float]  # x, y, z, vx, vy, vz
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Let a leaderless swarm flock and measure it.")
-    parser.add_argument("--map", default="square")
+    parser = argparse.ArgumentParser(description="Let a swarm flock and measure it.")
+    parser.add_argument("--map", default="open")
     parser.add_argument("-n", type=int, default=20, help="drones (default 20)")
+    parser.add_argument("-j", type=int, default=0, help="leaders (default 0)")
     parser.add_argument("-s", "--seed", type=int, default=0)
     parser.add_argument("--duration", type=float, default=60.0, help="simulated seconds")
     parser.add_argument("--timeout", type=float, default=600, help="wall-clock seconds")
@@ -55,7 +59,7 @@ def main() -> int:
 
     result = generate(
         ROOT / "maps" / f"{args.map}.toml", ROOT / "worlds", ROOT / "controllers",
-        n=args.n, j=0, seed=args.seed, name="flock_test", time_step=args.time_step,
+        n=args.n, j=args.j, seed=args.seed, name="flock_test", time_step=args.time_step,
     )  # fmt: skip
     LOG.unlink(missing_ok=True)
     try:
@@ -63,14 +67,17 @@ def main() -> int:
     except RunError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
-    print(f"{args.n} drones on '{args.map}' at {args.time_step} ms, "
+    print(f"{args.n} drones ({args.j} leaders) on '{args.map}' at {args.time_step} ms, "
           f"{args.duration:.0f} s simulated in {wall:.0f} s")  # fmt: skip
     targets = {d.id: d.altitude for d in result.swarm}
     link = BoidParams(**params.get("boids", {})).perception_radius
-    return report(targets, result.course.area.exterior, link, args.duration)
+    goal = result.course.sector_c.area
+    return report(targets, result.course.area.exterior, goal, link, args.duration)
 
 
-def report(targets: dict[int, float], walls: BaseGeometry, link: float, duration: float) -> int:
+def report(
+    targets: dict[int, float], walls: BaseGeometry, goal: Rect, link: float, duration: float
+) -> int:
     steps: dict[float, dict[int, State]] = defaultdict(dict)
     for row in csv.DictReader(open(LOG, newline="")):
         t = float(row["t"])
@@ -91,14 +98,21 @@ def report(targets: dict[int, float], walls: BaseGeometry, link: float, duration
     start = max(hover_at.values())
     print(f"takeoff:   all {len(targets)} hovering by {start:.1f} s; flocking from then on")
 
-    print("    t   groups  nearest  speed  polarization")
+    print("    t   groups  nearest  speed  polarization  in C")
     next_report = start
+    arrived_at = None
     for t in times:
+        s = steps[t]
+        inside = sum(_in(goal, v) for v in s.values())
+        if arrived_at is None and inside >= ARRIVED * len(s):
+            arrived_at = t
         if t >= next_report or t == times[-1]:
-            s = steps[t]
             print(f"  {t:5.1f}  {len(_groups(s, link)):5d}  {_mean_nearest(s):6.2f} m"
-                  f"  {_mean_speed(s):4.2f}  {_polarization(s):6.2f}")  # fmt: skip
+                  f"  {_mean_speed(s):4.2f}  {_polarization(s):6.2f}"
+                  f"  {inside:5d}/{len(s)}")  # fmt: skip
             next_report = t + REPORT_EVERY
+    print(f"arrival:   {100 * ARRIVED:.0f}% of the drones in C " +
+          (f"at {arrived_at:.1f} s" if arrived_at is not None else "never"))  # fmt: skip
 
     closest, when, pair = math.inf, 0.0, (0, 0)
     for t in times:
@@ -118,6 +132,10 @@ def report(targets: dict[int, float], walls: BaseGeometry, link: float, duration
     crashed = sorted(i for i, s in end.items() if s[2] < 0.1)
     print("crashes:   " + (f"{crashed}" if crashed else "none"))
     return 1 if touched or crashed else 0
+
+
+def _in(r: Rect, v: State) -> bool:
+    return r.x_min <= v[0] <= r.x_max and r.y_min <= v[1] <= r.y_max
 
 
 def _groups(s: dict[int, State], link: float) -> list[set[int]]:

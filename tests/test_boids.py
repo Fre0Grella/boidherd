@@ -1,14 +1,14 @@
 import pytest
 
 from boids import BoidParams, flock
-from boids.rules import alignment, cohesion, separation, speed_limit
+from boids.rules import alignment, cohesion, goal, separation, speed_limit
 from flight.sensing import Neighbour
 from util import ZERO, Vec3
 
 # only the rule under test switched on
-ONLY_SEPARATION = BoidParams(alignment=0, cohesion=0, drag=0)
-ONLY_ALIGNMENT = BoidParams(separation=0, cohesion=0, drag=0)
-ONLY_COHESION = BoidParams(separation=0, alignment=0, drag=0)
+ONLY_SEPARATION = BoidParams(alignment=0, cohesion=0)
+ONLY_ALIGNMENT = BoidParams(separation=0, cohesion=0)
+ONLY_COHESION = BoidParams(separation=0, alignment=0)
 
 
 def at(x: float, y: float = 0.0, z: float = 0.0, velocity: Vec3 = ZERO) -> Neighbour:
@@ -69,12 +69,25 @@ def test_neighbours_out_of_sight_are_ignored():
     assert flock(Vec3(), [far], p) == Vec3()
 
 
-# --- drag, limits, vertical --------------------------------------------------
+# --- goal, limits, vertical --------------------------------------------------
 
 
-def test_drag_slows_a_lone_drone():
-    a = flock(Vec3(0.5, 0, 0), [], BoidParams())
-    assert a.x < 0 and a.y == 0
+def test_a_lone_drone_keeps_its_drift():
+    assert flock(Vec3(0.5, 0, 0), [], BoidParams()) == Vec3()
+
+
+def test_a_leader_heads_for_its_goal_at_cruise_speed():
+    p = BoidParams()
+    assert flock(Vec3(), [], p, to_goal=Vec3(0, 20, 0)).y > 0
+    at_cruise = Vec3(0, p.goal_speed, 0)
+    assert goal(at_cruise, Vec3(0, 20, 0), p) == Vec3()  # far away: keep cruising
+
+
+def test_a_leader_slows_down_near_its_goal():
+    p = BoidParams(arrive_radius=3.0)
+    at_cruise = Vec3(p.goal_speed, 0, 0)
+    assert goal(at_cruise, Vec3(1.5, 0, 0), p).x < 0  # half the radius: half the speed
+    assert goal(Vec3(), Vec3(), p) == Vec3()  # there, and still: nothing to do
 
 
 def test_speed_limit_brakes_only_above_max_speed():
