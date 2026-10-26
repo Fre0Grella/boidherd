@@ -1245,6 +1245,56 @@ a failure.
 `open` is faster because the flock now wakes along the leaders'
 direction instead of each drone waiting for its own push.
 
+### The spawn: constant density, one group
+
+Drones used to be drawn anywhere in A, so the starting density depended
+on n and on A's size. The first sweep's n = 10 failures came from that,
+and so did `l_hall` seed 1 above. Now `place_swarm`:
+
+- draws them in a patch around A's centre with `area_per_drone` = 2 m²
+  each (about 1.2 m between neighbours). The patch is a disk, grown
+  until enough of it lies in A's free space, so a narrow A just makes it
+  longer. Only an A too small for n falls back to all of A, as before.
+- redraws (same seed stream, so still deterministic) any swarm that
+  falls apart into groups, two drones counting as linked under 2 m. With
+  `l_hall`'s altitude band (0.7 m, counted twice), 2 m stays under the
+  2.5 m perception radius.
+
+Mean nearest-neighbour distance at spawn: 1.1-1.25 m on `open`,
+`l_hall` and `l_turn` for 10, 20 and 40 drones. `open` at n = 40 is the
+exception: its A (64 m²) is too small for 80 m², so it falls back and
+is slightly denser.
+
+**The start, woken by noise.** On `l_hall` seed 2 the flock set off away
+from C within half a second of the start, too fast for 2 leaders to have
+any effect. The denser spawn is still contracting toward flight spacing
+at 16 s: every drone drifts at about 0.2 m/s (median 0.17, max 0.25).
+That is above the old `wake_speed` (0.1 m/s), so all 20 woke at once in
+random directions, and alignment made their average the flock's
+direction. The leaders turned it round only after a detour into A's back
+corner (90% in C at 133 s).
+
+`wake_speed` is now in units of v_flock like every other speed, set
+above a forming flock's drift and well below cruise. Leaders pass it
+within half a second, so their neighbours still wake from them. The
+runs below used 0.4; Marco chose **0.3 × v_flock**, between that and
+the old 0.1, not yet run headless.
+
+| `l_hall`, 20 drones, j = 2 | old spawn | new spawn, wake 0.1 | new spawn, wake 0.4 × v_flock |
+|---|---|---|---|
+| seed 0 | 78.1 s | 92.7 s | never (17/20) |
+| seed 1 | never (11/20, split at spawn) | 74.6 s | 114.6 s |
+| seed 2 | | 133.0 s (detour) | 74.5 s |
+
+Every run with the new spawn took off as one group, and none crashed.
+
+Seed 0's failure with wake 0.4 is a different one. Its tail (3 drones)
+stopped under the gap wall's left half while the flock went through.
+They then aligned with the wrong neighbours: two ended at the bottom of
+hall 2, one above the gap wall's right half. A follower that loses the
+flock can't find C, by design. Three seeds per setting can't separate
+the wake settings. That's what the sweep (step 5) is for.
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?

@@ -6,7 +6,7 @@ from shapely.geometry import Point
 
 from maps import load_map, parse_map
 from maps.course import Course, build_course
-from worldgen.spawn import ALTITUDE_MARGIN, SpawnError, place_swarm
+from worldgen.spawn import ALTITUDE_MARGIN, PATCH_GROWTH, Drone, SpawnError, place_swarm
 
 MAPS = Path(__file__).parent.parent / "maps"
 
@@ -33,6 +33,43 @@ def test_spacing_and_clearance_are_respected(course: Course):
         assert Point(d.xy).distance(course.area.boundary) >= 0.5
         for e in swarm[i + 1 :]:
             assert math.dist(d.xy, e.xy) >= 1.0
+
+
+def groups(swarm: tuple[Drone, ...], link: float) -> int:
+    parent = list(range(len(swarm)))
+
+    def root(i: int) -> int:
+        while parent[i] != i:
+            i = parent[i]
+        return i
+
+    for i, d in enumerate(swarm):
+        for k, e in enumerate(swarm[:i]):
+            if math.dist(d.xy, e.xy) < link:
+                parent[root(i)] = root(k)
+    return len({root(i) for i in range(len(swarm))})
+
+
+@pytest.mark.parametrize("n", [5, 10, 20, 30])
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_every_swarm_starts_as_one_group(course: Course, n: int, seed: int):
+    assert groups(place_swarm(course, n=n, j=1, seed=seed), link=2.0) == 1
+
+
+@pytest.mark.parametrize("n", [10, 20])
+def test_the_swarm_starts_at_the_same_density_whatever_n(n: int):
+    course = build_course(load_map(MAPS / "open.toml"))
+    swarm = place_swarm(course, n=n, j=1, seed=0, area_per_drone=2.0)
+    radius = math.sqrt(n * 2.0 / math.pi)  # A is wide enough for the whole disk
+    radius += PATCH_GROWTH  # shapely's disk is a polygon, a little smaller than the circle
+    centre = course.sector_a.area.center
+    assert all(math.dist(d.xy, centre) <= radius for d in swarm)
+    assert max(math.dist(d.xy, centre) for d in swarm) > 0.7 * radius  # not denser either
+
+
+def test_a_too_small_for_the_density_takes_all_of_a(course: Course):
+    swarm = place_swarm(course, n=20, j=1, seed=0, area_per_drone=10.0)
+    assert len(swarm) == 20  # 200 m^2 asked, A has 66: denser, but still placed
 
 
 def test_exactly_j_leaders(course: Course):

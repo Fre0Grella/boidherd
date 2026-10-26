@@ -2,10 +2,14 @@
 
 Drones start on the floor of sector A and take off to their own altitude,
 like a real Crazyflie. `place_swarm()` draws their floor positions at random
-with the run's seed: the horizontal spacing keeps them apart, the clearance
-keeps them off the walls and obstacles. Each drone draws a takeoff altitude
-from A's altitude band, and j drones, chosen at random, become leaders.
-Same course, n, j and seed: same swarm.
+with the run's seed, in a patch around A's centre sized for the swarm
+(`area_per_drone` each), so every swarm starts at the same density whatever
+n and A: a sweep over n then measures the swarm's size, not how sparse it
+started (design log, the spawn). The horizontal spacing keeps them apart,
+the clearance keeps them off the walls and obstacles, and a draw that falls
+apart into groups is drawn again: the swarm starts as one flock. Each drone
+draws a takeoff altitude from A's altitude band, and j drones, chosen at
+random, become leaders. Same course, n, j and seed: same swarm.
 """
 
 import math
@@ -20,7 +24,12 @@ from shapely.ops import unary_union
 from maps.course import Course
 
 ATTEMPTS_PER_DRONE = 500
+SWARM_ATTEMPTS = 100  # draws, until one is a single group
+PATCH_GROWTH = 0.1  # m: the patch's radius grows by this until it is large enough
 ALTITUDE_MARGIN = 0.3  # no takeoff altitude closer than this to the floor or the ceiling
+
+
+Point2 = tuple[float, float]
 
 
 class SpawnError(Exception):
@@ -37,12 +46,24 @@ class Drone:
 
 
 def place_swarm(
-    course: Course, n: int, j: int, seed: int, spacing: float = 1.0, clearance: float = 0.5
+    course: Course,
+    n: int,
+    j: int,
+    seed: int,
+    spacing: float = 1.0,
+    clearance: float = 0.5,
+    area_per_drone: float = 2.0,
+    link: float = 2.0,
 ) -> tuple[Drone, ...]:
     """n drones in sector A, j of them leaders.
 
     `spacing`: minimum horizontal distance between two drones.
     `clearance`: minimum distance from any wall or obstacle.
+    `area_per_drone`: m^2 of floor per drone, the starting density (~1.2 m between
+    neighbours at 2); denser only when A is too small for n.
+    `link`: two drones closer than this (horizontally) are in the same group; every drone
+    must be linked to the others through such pairs. Below the perception radius (2.5 m)
+    with room for A's altitude band, which counts twice (boids' vertical_scale).
     """
     if n < 1:
         raise SpawnError(f"need at least one drone, got n = {n}")
@@ -51,23 +72,24 @@ def place_swarm(
     low, high = _altitude_band(course)
     area = course.sector_a.area
 
-    obstacles = _obstacles(course)
+    free = box(area.x_min, area.y_min, area.x_max, area.y_max).difference(
+        _obstacles(course).buffer(clearance)
+    )
+    patch = _patch(free, Point(area.center), n * area_per_drone)
     rng = random.Random(seed)
-    spots: list[tuple[float, float]] = []
-    for _ in range(n * ATTEMPTS_PER_DRONE):
-        if len(spots) == n:
+    for _ in range(SWARM_ATTEMPTS):
+        spots = _draw(patch, n, spacing, rng)
+        if len(spots) < n and patch.equals(free):
+            raise SpawnError(
+                f"could only place {len(spots)} of {n} drones in sector A with {spacing} m "
+                f"spacing and {clearance} m clearance; lower n or the spacing, or enlarge A"
+            )
+        if len(spots) == n and _connected(spots, link):
             break
-        x = rng.uniform(area.x_min, area.x_max)
-        y = rng.uniform(area.y_min, area.y_max)
-        if Point(x, y).distance(obstacles) < clearance:
-            continue
-        if any(math.hypot(x - sx, y - sy) < spacing for sx, sy in spots):
-            continue
-        spots.append((x, y))
-    if len(spots) < n:
+    else:
         raise SpawnError(
-            f"could only place {len(spots)} of {n} drones in sector A with {spacing} m "
-            f"spacing and {clearance} m clearance; lower n or the spacing, or enlarge A"
+            f"no draw of {n} drones in sector A made a single group with {link} m links "
+            f"in {SWARM_ATTEMPTS} attempts; lower area_per_drone or raise link"
         )
 
     leaders = set(rng.sample(range(n), j))
@@ -81,6 +103,45 @@ def place_swarm(
         )
         for i, xy in enumerate(spots)
     )
+
+
+def _patch(free: BaseGeometry, centre: Point, target: float) -> BaseGeometry:
+    """The part of `free` within a disk around `centre`, grown until it covers `target` m^2,
+    or all of `free` if it is smaller."""
+    if free.area <= target:
+        return free
+    radius = math.sqrt(target / math.pi)
+    while (patch := free.intersection(centre.buffer(radius))).area < target:
+        radius += PATCH_GROWTH
+    return patch
+
+
+def _draw(patch: BaseGeometry, n: int, spacing: float, rng: random.Random) -> list[Point2]:
+    """Up to n random spots in `patch`, at least `spacing` apart."""
+    x_min, y_min, x_max, y_max = patch.bounds
+    spots: list[Point2] = []
+    for _ in range(n * ATTEMPTS_PER_DRONE):
+        if len(spots) == n:
+            break
+        x, y = rng.uniform(x_min, x_max), rng.uniform(y_min, y_max)
+        if not patch.contains(Point(x, y)):
+            continue
+        if any(math.hypot(x - sx, y - sy) < spacing for sx, sy in spots):
+            continue
+        spots.append((x, y))
+    return spots
+
+
+def _connected(spots: list[Point2], link: float) -> bool:
+    """Whether every spot is linked to the first through spots closer than `link`."""
+    reached, frontier = {0}, [0]
+    while frontier:
+        i = frontier.pop()
+        for k, (x, y) in enumerate(spots):
+            if k not in reached and math.hypot(x - spots[i][0], y - spots[i][1]) < link:
+                reached.add(k)
+                frontier.append(k)
+    return len(reached) == len(spots)
 
 
 def _altitude_band(course: Course) -> tuple[float, float]:

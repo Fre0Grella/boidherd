@@ -29,7 +29,9 @@ class BoidParams:
     vertical_scale: float = 2.0  # a neighbour above or below counts as this x closer (zone.py)
     # self-propulsion: cruise at v_flock along the flock's mean direction (cruise.py)
     v_flock: float = 1.0  # m/s: THE speed knob, everything marked "x v_flock" follows it
-    wake_speed: float = 0.1  # m/s: a velocity gives a direction from this speed
+    # x v_flock: a velocity gives a direction from this speed; above the drift of a flock
+    # still forming (~0.2 m/s at 1 m/s), so it wakes from its leaders, not from noise
+    wake_speed: float = 0.3
     settle_distance: float = 2.5  # m a drone keeps cruising into C after it recognises it
     # repulsion: linear, from repulsion_radius in
     repulsion_radius: float = 1.0  # m (robotsim R_0)

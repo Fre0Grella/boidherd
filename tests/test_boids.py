@@ -60,18 +60,18 @@ def moving(vx: float, vy: float, x: float = 1.0) -> Neighbour:
 
 
 def test_no_cruise_before_go():
-    assert Cruise(P).update(Vec3(0.3, 0, 0), [moving(0.3, 0)], 0.0, go=False, in_c=False) is None
+    assert Cruise(P).update(Vec3(0.6, 0, 0), [moving(0.6, 0)], 0.0, go=False, in_c=False) is None
 
 
 def test_a_follower_wakes_only_once_it_or_a_neighbour_moves():
-    cruise, slow = Cruise(P), 0.9 * P.wake_speed
+    cruise, slow = Cruise(P), 0.9 * P.wake_speed * P.v_flock
     assert cruise.update(Vec3(slow, 0, 0), [moving(0, slow)], 0.0, go=True, in_c=False) is None
-    assert cruise.update(Vec3(), [moving(0, 0.3)], 0.1, go=True, in_c=False) == Vec3(0, 1, 0)
+    assert cruise.update(Vec3(), [moving(0, 0.6)], 0.1, go=True, in_c=False) == Vec3(0, 1, 0)
 
 
 def test_a_follower_heads_along_the_mean_direction_mine_included():
     heading = Cruise(P).update(
-        Vec3(0, 0.2, 0), [moving(0.5, 0), moving(0.3, 0)], 0.0, go=True, in_c=False
+        Vec3(0, 0.5, 0), [moving(0.5, 0), moving(0.6, 0)], 0.0, go=True, in_c=False
     )
     assert heading == Vec3(2, 1, 0).unit()
 
@@ -91,13 +91,13 @@ def test_neighbours_out_of_sight_dont_steer():
 
 def test_alone_a_follower_keeps_its_last_heading():
     cruise = Cruise(P)
-    cruise.update(Vec3(0.3, 0, 0), [], 0.0, go=True, in_c=False)
+    cruise.update(Vec3(0.6, 0, 0), [], 0.0, go=True, in_c=False)
     assert cruise.update(Vec3(0, 0.01, 0), [], 0.1, go=True, in_c=False) == Vec3(1, 0, 0)
 
 
 def test_a_leader_takes_only_its_neighbours_direction_and_forgets_it_alone():
     cruise = Cruise(P, leader=True)
-    assert cruise.update(Vec3(-0.5, 0, 0), [moving(0, 0.4)], 0.0, go=True, in_c=False) == Vec3(
+    assert cruise.update(Vec3(-0.5, 0, 0), [moving(0, 0.6)], 0.0, go=True, in_c=False) == Vec3(
         0, 1, 0
     )
     assert cruise.update(Vec3(-0.5, 0, 0), [], 0.1, go=True, in_c=False) is None
@@ -105,7 +105,7 @@ def test_a_leader_takes_only_its_neighbours_direction_and_forgets_it_alone():
 
 def test_it_stops_once_it_has_cruised_settle_distance_into_c():
     p = BoidParams(v_flock=0.5, settle_distance=2.0)  # 4 s
-    cruise, v = Cruise(p), Vec3(0.3, 0, 0)
+    cruise, v = Cruise(p), Vec3(0.6, 0, 0)
     cruise.update(v, [], 0.0, go=True, in_c=False)
     assert cruise.update(v, [], 1.0, go=True, in_c=True) == Vec3(1, 0, 0)  # just entered
     assert cruise.update(v, [], 4.9, go=True, in_c=True) is not None
@@ -114,7 +114,7 @@ def test_it_stops_once_it_has_cruised_settle_distance_into_c():
 
 
 def test_leaving_c_restarts_the_clock():
-    cruise, v = Cruise(P), Vec3(0.3, 0, 0)
+    cruise, v = Cruise(P), Vec3(0.6, 0, 0)
     cruise.update(v, [], 0.0, go=True, in_c=True)
     cruise.update(v, [], 1.0, go=True, in_c=False)  # pushed out
     settle_time = P.settle_distance / P.v_flock
@@ -122,7 +122,7 @@ def test_leaving_c_restarts_the_clock():
 
 
 def test_the_heading_is_horizontal():
-    heading = Cruise(P).update(Vec3(0.3, 0, 0.3), [], 0.0, go=True, in_c=False)
+    heading = Cruise(P).update(Vec3(0.6, 0, 0.6), [], 0.0, go=True, in_c=False)
     assert heading == Vec3(1, 0, 0)
 
 

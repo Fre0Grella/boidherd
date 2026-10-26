@@ -56,8 +56,9 @@ class Cruise:
             for n in neighbours
             if within(n.offset, p.perception_radius, p.vertical_scale)
         ]
-        moving = [v.horizontal() for v in seen if v.horizontal().length() >= p.wake_speed]
-        if not self.leader and velocity.horizontal().length() >= p.wake_speed:
+        wake = p.wake_speed * p.v_flock
+        moving = [v.horizontal() for v in seen if v.horizontal().length() >= wake]
+        if not self.leader and velocity.horizontal().length() >= wake:
             moving.append(velocity.horizontal())
         mean = Vec3.sum(v.unit() for v in moving)
         if mean.length() > 0:
