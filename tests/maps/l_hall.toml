@@ -1,0 +1,27 @@
+# Test fixture: the tests check this file's exact contents. Experiment in
+# maps/l_hall.toml instead; change this one only together with its tests.
+version = 1
+description = "Wide L hall: a pillar forest before the turn, a wall with a gap after it."
+
+[arena]
+ceiling = 2.5                  # flight ceiling; full-height obstacles reach it
+rects = [                      # free space = union of rectangles (two opposite corners)
+  [[0, 0], [40, 8]],           # hall 1: 40 m long, 8 m wide
+  [[32, 0], [40, 30]],         # hall 2: after a sharp left turn
+]
+
+[sectors]
+A = { rect = [[1, 1], [12, 7]], z = 1.5 }  # spawn; z: takeoff altitude band (a number: all the same)
+C = { rect = [[32, 24], [40, 30]] }               # goal; no z = floor to ceiling
+
+[obstacles]
+walls = [
+  [[32, 16], [34, 16.2]],      # wall across hall 2...
+  [[38, 16], [40, 16.2]],      # ...with a 4 m gap in the middle (2 m jammed 20 drones)
+]
+pillars = [
+  { center = [29, 4], radius = 0.15 },
+]
+forests = [
+  { region = [[14, 0], [26, 8]], count = 15, radius = [0.05, 0.12], min_gap = 1.0, seed = 3 },
+]

@@ -17,7 +17,7 @@ from worldgen.wbt import (
     render_world,
 )
 
-MAPS = Path(__file__).parent.parent / "maps"
+MAPS = Path(__file__).parent / "maps"  # frozen copies, not the maps/ to experiment with
 
 
 @pytest.fixture(scope="module")

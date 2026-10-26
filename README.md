@@ -40,6 +40,9 @@ opening any world: it also tells Webots to run the controllers with the
 project's `.venv` (see `docs/design-log.md`, "How Webots starts Python
 controllers").
 
+The maps in `maps/` are yours to edit and add to. The tests use their own
+frozen copies in `tests/maps/`, so an experiment never breaks them.
+
 ## Test in Webots
 
 Headless runs that report numbers (start them from PowerShell: Webots

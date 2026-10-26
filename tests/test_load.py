@@ -6,7 +6,7 @@ import pytest
 
 from maps import MapError, Rect, load_map, parse_map
 
-MAPS = Path(__file__).parent.parent / "maps"
+MAPS = Path(__file__).parent / "maps"  # frozen copies, not the maps/ to experiment with
 
 
 def minimal(**changes: object) -> dict[str, object]:

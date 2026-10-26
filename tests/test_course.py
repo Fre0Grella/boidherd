@@ -8,7 +8,7 @@ from shapely.geometry import Point
 from maps import MapError, Wall, load_map, parse_map
 from maps.course import WALL_THICKNESS, Course, build_course
 
-MAPS = Path(__file__).parent.parent / "maps"
+MAPS = Path(__file__).parent / "maps"  # frozen copies, not the maps/ to experiment with
 L_RECTS = [[[0, 0], [20, 4]], [[16, 0], [20, 16]]]
 L_SECTORS = {"A": {"rect": [[0, 0], [4, 4]]}, "C": {"rect": [[16, 12], [20, 16]]}}
 # a square track around a 6 x 6 m hole

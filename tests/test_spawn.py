@@ -8,7 +8,7 @@ from maps import load_map, parse_map
 from maps.course import Course, build_course
 from worldgen.spawn import ALTITUDE_MARGIN, PATCH_GROWTH, Drone, SpawnError, place_swarm
 
-MAPS = Path(__file__).parent.parent / "maps"
+MAPS = Path(__file__).parent / "maps"  # frozen copies, not the maps/ to experiment with
 
 
 @pytest.fixture(scope="module")

@@ -1,0 +1,14 @@
+# Test fixture: the tests check this file's exact contents. Experiment in
+# maps/open.toml instead; change this one only together with its tests.
+version = 1
+description = "Open room for the n x j experiment (phase 2): a compact start, a goal 29 m away, nothing in between."
+
+[arena]
+ceiling = 3                  # flight ceiling
+rects = [                    # free space = union of rectangles (two opposite corners)
+  [[0, 0], [40, 20]],        # one room, 40 x 20 m
+]
+
+[sectors]
+A = { rect = [[1, 6], [9, 14]], z = 1.2 }    # spawn: 8 x 8 m, ~50 drones fit at 1 m spacing
+C = { rect = [[30, 6], [38, 14]] }           # goal: 8 x 8 m, 2 m from the far wall
