@@ -2,8 +2,8 @@ import math
 
 import pytest
 
-from boids import BoidParams, flock
-from boids.rules import braking_curve, cohesion, friction, repulsion, seek, self_propulsion
+from boids import BoidParams, Cruise, flock
+from boids.rules import braking_curve, cohesion, friction, repulsion, seek
 from flight.sensing import Neighbour
 from util import ZERO, Vec3
 
@@ -49,22 +49,47 @@ def test_braking_curve_is_continuous_where_the_two_parts_meet():
 # --- self-propulsion and leaders ---------------------------------------------
 
 
-def test_cruise_keeps_my_heading_at_v_flock():
-    v = self_propulsion(Vec3(0.3, 0.4, 0), P)
-    assert v.length() == pytest.approx(P.v_flock)
+def test_cruise_goes_along_the_heading_at_v_flock():
+    v = flock(Vec3(), [], P, heading=Vec3(0.6, 0.8, 0))
     assert (v.x, v.y) == pytest.approx((0.6 * P.v_flock, 0.8 * P.v_flock))
+    assert flock(Vec3(0.5, 0, 0), [], P, heading=None) == Vec3()
 
 
-def test_no_cruise_while_too_slow_to_have_a_heading():
-    assert self_propulsion(Vec3(0.9 * P.wake_speed, 0, 0), P) == Vec3()
-    half = self_propulsion(Vec3(1.5 * P.wake_speed, 0, 0), P)
-    assert half.length() == pytest.approx(P.v_flock / 2)
+def test_no_cruise_before_go():
+    assert Cruise(P).update(Vec3(0.3, 0, 0), now=0.0, go=False, in_c=False) is None
 
 
-def test_cruise_only_when_allowed():
-    moving = Vec3(0.5, 0, 0)
-    assert flock(moving, [], P, cruise=True).x == pytest.approx(P.v_flock)
-    assert flock(moving, [], P, cruise=False) == Vec3()
+def test_a_drone_wakes_only_once_moving():
+    cruise = Cruise(P)
+    assert cruise.update(Vec3(0.9 * P.wake_speed, 0, 0), now=0.0, go=True, in_c=False) is None
+    assert cruise.update(Vec3(0, 0.3, 0), now=0.1, go=True, in_c=False) == Vec3(0, 1, 0)
+
+
+def test_once_awake_it_keeps_its_last_heading_when_slowed_down():
+    cruise = Cruise(P)
+    cruise.update(Vec3(0.3, 0, 0), now=0.0, go=True, in_c=False)
+    assert cruise.update(Vec3(0, 0.01, 0), now=0.1, go=True, in_c=False) == Vec3(1, 0, 0)
+
+
+def test_it_stops_settle_time_after_entering_c():
+    cruise, v = Cruise(P), Vec3(0.3, 0, 0)
+    cruise.update(v, now=0.0, go=True, in_c=False)
+    assert cruise.update(v, now=1.0, go=True, in_c=True) == Vec3(1, 0, 0)  # just entered
+    assert cruise.update(v, now=1.0 + P.settle_time - 0.1, go=True, in_c=True) is not None
+    assert cruise.update(v, now=1.0 + P.settle_time, go=True, in_c=True) is None
+    assert cruise.update(Vec3(0.01, 0, 0), now=10.0, go=True, in_c=True) is None  # stays put
+
+
+def test_leaving_c_restarts_the_clock():
+    cruise, v = Cruise(P), Vec3(0.3, 0, 0)
+    cruise.update(v, now=0.0, go=True, in_c=True)
+    cruise.update(v, now=1.0, go=True, in_c=False)  # pushed out
+    assert cruise.update(v, now=P.settle_time + 0.5, go=True, in_c=True) is not None
+
+
+def test_the_heading_is_horizontal():
+    heading = Cruise(P).update(Vec3(0.3, 0, 0.3), now=0.0, go=True, in_c=False)
+    assert heading == Vec3(1, 0, 0)
 
 
 def test_a_leader_at_rest_heads_straight_for_its_goal():

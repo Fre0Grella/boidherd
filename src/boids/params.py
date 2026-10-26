@@ -18,9 +18,10 @@ class BoidParams:
     # who counts: neighbours within this (ellipsoidal) radius; the IR range (3 m) caps it anyway
     perception_radius: float = 2.5  # m
     vertical_scale: float = 2.0  # a neighbour above or below counts as this x closer (zone.py)
-    # self-propulsion: cruise at v_flock the way I am already going
+    # self-propulsion: cruise at v_flock along my heading (cruise.py)
     v_flock: float = 0.5  # m/s
-    wake_speed: float = 0.1  # m/s: below it no cruise (the heading is noise), full at 2x
+    wake_speed: float = 0.1  # m/s: a drone wakes, and a heading counts, from this speed
+    settle_time: float = 5.0  # s a drone keeps cruising after it recognises C
     # repulsion: linear, from repulsion_radius in
     repulsion_radius: float = 1.0  # m (robotsim R_0)
     repulsion_gain: float = 0.5  # 1/s: m/s of push per metre inside the radius

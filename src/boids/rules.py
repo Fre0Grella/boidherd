@@ -8,8 +8,8 @@ sees what IR tells a drone about its neighbours (where they are relative to
 it, how they move) and its own velocity; a follower never needs its
 absolute position.
 
-- self-propulsion: cruise at `v_flock` the way I am going, once the mission
-  has started and while I am outside C (the controller decides);
+- self-propulsion: cruise at `v_flock` along a heading, once the mission
+  has started and while I am outside C (when and which way: cruise.py);
 - repulsion: away from neighbours inside `repulsion_radius`, linearly;
 - friction: two neighbours may differ in velocity only by what they could
   still brake within their distance (the braking curve), the excess is
@@ -36,17 +36,18 @@ def flock(
     velocity: Vec3,
     neighbours: list[Neighbour],
     p: BoidParams,
-    cruise: bool = False,
+    heading: Vec3 | None = None,
     to_goal: Vec3 | None = None,
 ) -> Vec3:
-    """The wanted velocity (m/s, world frame). `cruise`: self-propulsion is on. `to_goal`,
-    for a leader on its way: from the drone to its goal, metres (then it cruises toward it)."""
+    """The wanted velocity (m/s, world frame). `heading`: cruise along it (a unit vector,
+    see cruise.py). `to_goal`, for a leader on its way: from the drone to its goal, metres
+    (then it cruises toward it instead)."""
     seen = [n for n in neighbours if within(n.offset, p.perception_radius, p.vertical_scale)]
     total = repulsion(seen, p) + friction(velocity, seen, p) + cohesion(seen) * p.cohesion
     if to_goal is not None:
         total = total + seek(velocity, to_goal, p)
-    elif cruise:
-        total = total + self_propulsion(velocity, p)
+    elif heading is not None:
+        total = total + heading * p.v_flock
     return total.scaled_z(p.vertical_gain).clamped(p.max_speed)
 
 
@@ -60,12 +61,6 @@ def braking_curve(distance: float, slope: float, deceleration: float) -> float:
     if linear < deceleration / slope:
         return linear
     return math.sqrt(2 * deceleration * distance - (deceleration / slope) ** 2)
-
-
-def self_propulsion(velocity: Vec3, p: BoidParams) -> Vec3:
-    """Cruise at v_flock along my heading; nothing below wake_speed, where the heading is
-    noise, full from twice that."""
-    return velocity.unit() * (p.v_flock * _wake(velocity, p))
 
 
 def seek(velocity: Vec3, to_goal: Vec3, p: BoidParams) -> Vec3:

@@ -988,6 +988,40 @@ gain). At 0.2 the resting flock settles to 0.01 m/s by 36 s.
 | Webots, friction 1 | 0.3-0.4 m/s | 0.8-0.9 | all, moving 0.2 m/s | 127 s | 0.24 m |
 | Webots, friction 0.2 | 0.50 m/s | 1.00 | all, still (0.02 m/s) | 106 s | 0.32 m |
 
+**The tail: a stop wave.** With friction 0.2 the front reached C at ~66 s
+and 14 of 20 were in by 76 s, but the last ones only by 136 s. The front
+stops in C (no cruise there); friction slows the drones behind it below
+`wake_speed`; their cruise switched off while still outside C, and only
+cohesion pulled them in, over about a minute. Chosen: **once woken, a
+drone keeps cruising until it is in C** (`boids.Cruise`), along its last
+heading taken above `wake_speed`, so a drone squeezed to a stop behind
+the crowd still pushes the way it was going. Turned down: accepting the
+slow tail (arrival times would measure it, not the leaders), and a lower
+`wake_speed` (moves the threshold, keeps the stall). Result: 90% in C at
+91.8 s (was 106), all 20 by 116 s (was 136), still one group, closest
+pair 0.31 m. The last two still trail by ~20 s.
+
+**Where the flock stops.** Leaders seek C's centre (and stopped 0.6 m
+short of it), but the flock arrives behind them and followers stopped the
+moment they entered C: the whole flock piled up between the entry edge
+(x 30.5) and the leaders (33.4), the far half of C empty, the tail on the
+border. Chosen: **a drone keeps cruising for `settle_time` after it
+recognises C**, then stops; it still needs nothing but recognition, and
+works for any flock size. Turned down: leaders aiming past the centre (a
+stopping point before C's far edge), which needs a depth tuned to the
+flock's length.
+
+| 20 drones, j = 2, `open` | 90% in C | all in C | flock at the end (C: x 30-38) |
+|---|---|---|---|
+| stop on entering C (cruise latch) | 91.8 s | 116 s | x 30.5-33.4 |
+| settle_time 3 s | 70.0 s | by 76 s | x 30.9-33.8 |
+| settle_time 5 s (chosen) | 69.9 s | by 76 s | x 31.5-34.3 |
+
+The tail is gone: 4 drones in C at 66 s, all 20 ten seconds later. Leaders
+set off at 16 s, so the 29 m took ~54 s at 0.50 m/s (Reynolds, phase 2:
+79 s to 90%, from a 16 s start too). The flock still sits in C's near
+half, held by its leaders at the centre; 5 s keeps it 1.5 m off the edge.
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?
