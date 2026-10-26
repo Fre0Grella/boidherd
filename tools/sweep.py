@@ -1,0 +1,204 @@
+"""The n x j experiment: how many leaders does a flock need to reach sector C?
+
+    uv run tools/sweep.py                       # n 10 20 40, j 0 1 2 4 8, seeds 0 1 2
+    uv run tools/sweep.py -n 20 -j 0 2 --seeds 0 --duration 90
+
+Runs every (n, j, seed) on the open map, each headless until `--duration`
+simulated seconds, until every drone is in C, or until a drone crashes, and
+appends one row per run to logs/sweep_results.csv as soon as it finishes.
+Runs already in that file are skipped, so a stopped sweep picks up where it
+left off. Per run: when the flock started (all hovering), when 90% and when
+all drones were in C, and at the last step how many were in C, the groups,
+the drones in a group without a leader (they never hear where C is), the
+polarization; the closest two drones ever got, how close any came to a
+wall (nothing avoids walls before phase 3) and the crashed drones. Run it
+from PowerShell.
+"""
+
+import argparse
+import csv
+import itertools
+import math
+import sys
+import time
+from collections import defaultdict
+from pathlib import Path
+
+from flock_test import ARRIVED, HOVER_TOLERANCE, State, _groups, _in, _polarization
+from headless import RunError, run_until
+from shapely.geometry import Point
+
+from boids import BoidParams
+from util.overrides import parse
+from worldgen.cli import generate
+from worldgen.wbt import TIME_STEP
+
+ROOT = Path(__file__).resolve().parents[1]
+NAME = "sweep_run"  # the world; the referee logs it to logs/sweep_run.csv
+LOG = ROOT / "logs" / f"{NAME}.csv"
+RESULTS = ROOT / "logs" / "sweep_results.csv"
+CRASHED = 0.1  # m: a drone this low after takeoff is down
+ROW_BYTES = 80  # a referee row is ~60 bytes
+COLUMNS = [
+    "n", "j", "seed", "time_step", "simulated", "wall", "start", "arrived", "all_in",
+    "in_c", "groups", "uninformed", "polarization", "closest", "near_wall", "crashed",
+]  # fmt: skip
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Sweep drones x leaders x seeds.")
+    parser.add_argument("--map", default="open")
+    parser.add_argument("-n", type=int, nargs="+", default=[10, 20, 40])
+    parser.add_argument("-j", type=int, nargs="+", default=[0, 1, 2, 4, 8])
+    parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
+    parser.add_argument("--duration", type=float, default=150.0, help="simulated seconds")
+    parser.add_argument("--timeout", type=float, default=1800, help="wall-clock seconds per run")
+    parser.add_argument("--time-step", type=int, default=TIME_STEP, help="ms")
+    parser.add_argument("--set", nargs="*", default=[], metavar="SECTION.NAME=VALUE",
+                        help="override settings, e.g. boids.goal_speed=0.4")  # fmt: skip
+    args = parser.parse_args()
+    params = parse(args.set)
+    link = BoidParams(**params.get("boids", {})).perception_radius
+
+    done = _done_runs()
+    runs = [r for r in itertools.product(args.n, args.j, args.seeds)
+            if r not in done and r[1] <= r[0]]  # fmt: skip
+    print(f"{len(runs)} runs to go ({len(done)} already in {RESULTS.name})", flush=True)
+    for k, (n, j, seed) in enumerate(runs, 1):
+        result = generate(
+            ROOT / "maps" / f"{args.map}.toml", ROOT / "worlds", ROOT / "controllers",
+            n=n, j=j, seed=seed, name=NAME, time_step=args.time_step,
+        )  # fmt: skip
+        _remove_log()
+        goal = result.course.sector_c.area
+        try:
+            wall = run_until(
+                result.world,
+                lambda n=n, goal=goal: _over(n, goal, args.duration),
+                args.timeout,
+                params,
+            )
+        except RunError as e:
+            print(f"[{k}/{len(runs)}] n {n} j {j} seed {seed}: {e}", file=sys.stderr, flush=True)
+            continue
+        leaders = {d.id for d in result.swarm if d.leader}
+        targets = {d.id: d.altitude for d in result.swarm}
+        row = measure(targets, leaders, result.course.area.exterior, goal, link)
+        row.update(n=n, j=j, seed=seed, time_step=args.time_step, wall=round(wall))
+        _append(row)
+        print(f"[{k}/{len(runs)}] n {n} j {j} seed {seed}: " + ", ".join(
+            f"{c} {row[c]}" for c in ("simulated", "arrived", "all_in", "uninformed", "crashed")
+        ) + f" ({wall:.0f} s wall)", flush=True)  # fmt: skip
+    return 0
+
+
+def measure(
+    targets: dict[int, float], leaders: set[int], walls, goal, link: float
+) -> dict[str, object]:
+    steps: dict[float, dict[int, State]] = defaultdict(dict)
+    for row in csv.DictReader(open(LOG, newline="")):
+        x, y, z, vx, vy, vz = (float(row[k]) for k in ("x", "y", "z", "vx", "vy", "vz"))
+        steps[float(row["t"])][int(row["id"])] = (x, y, z, vx, vy, vz)
+    times = [t for t in sorted(steps) if len(steps[t]) == len(targets)]
+
+    hover_at: dict[int, float] = {}
+    for t in times:
+        for i, s in steps[t].items():
+            if i not in hover_at and abs(s[2] - targets[i]) < HOVER_TOLERANCE:
+                hover_at[i] = t
+    start = max(hover_at.values()) if len(hover_at) == len(targets) else None
+
+    arrived = all_in = None
+    for t in times:
+        inside = sum(_in(goal, s) for s in steps[t].values())
+        if arrived is None and inside >= ARRIVED * len(targets):
+            arrived = t
+        if all_in is None and inside == len(targets):
+            all_in = t
+
+    closest = min(
+        math.dist(a[:3], b[:3])
+        for t in times
+        for a, b in itertools.combinations(steps[t].values(), 2)
+    )
+    near_wall = min(walls.distance(Point(s[0], s[1])) for t in times for s in steps[t].values())
+    end = steps[times[-1]]
+    groups = _groups(end, link)
+    return {
+        "simulated": times[-1],
+        "start": start,
+        "arrived": arrived,
+        "all_in": all_in,
+        "in_c": sum(_in(goal, s) for s in end.values()),
+        "groups": len(groups),
+        "uninformed": sum(len(g) for g in groups if not g & leaders),
+        "polarization": round(_polarization(end), 2),
+        "closest": round(closest, 2),
+        "near_wall": round(near_wall, 2),
+        "crashed": " ".join(
+            str(i) for i, s in sorted(end.items()) if start is not None and s[2] < CRASHED
+        ),
+    }
+
+
+def _over(n: int, goal, duration: float) -> bool:
+    """The run can stop: time is up, every drone is in C, or one has crashed after takeoff."""
+    t, s = _last_step(n)
+    if t is None:
+        return False
+    if t >= duration or all(_in(goal, v) for v in s.values()):
+        return True
+    return t > 10 and any(v[2] < CRASHED for v in s.values())
+
+
+def _last_step(n: int) -> tuple[float | None, dict[int, State]]:
+    """The latest complete time step logged so far (the last one may be half written)."""
+    try:
+        with open(LOG, "rb") as f:
+            f.seek(0, 2)
+            f.seek(max(f.tell() - 3 * n * ROW_BYTES, 0))
+            lines = f.read().decode(errors="ignore").splitlines()[1:]
+    except OSError:
+        return None, {}
+    steps: dict[float, dict[int, State]] = defaultdict(dict)
+    for line in lines:
+        try:
+            t, i, *v = line.split(",")
+            steps[float(t)][int(i)] = tuple(float(x) for x in v)  # type: ignore[assignment]
+        except ValueError:
+            continue
+    full = [t for t in steps if len(steps[t]) == n]
+    if not full:
+        return None, {}
+    return max(full), steps[max(full)]
+
+
+def _done_runs() -> set[tuple[int, int, int]]:
+    if not RESULTS.exists():
+        return set()
+    with open(RESULTS, newline="") as f:
+        return {(int(r["n"]), int(r["j"]), int(r["seed"])) for r in csv.DictReader(f)}
+
+
+def _append(row: dict[str, object]) -> None:
+    new = not RESULTS.exists()
+    with open(RESULTS, "a", newline="") as f:
+        out = csv.DictWriter(f, COLUMNS)
+        if new:
+            out.writeheader()
+        out.writerow({c: "" if row[c] is None else row[c] for c in COLUMNS})
+
+
+def _remove_log() -> None:
+    """The Webots just stopped may hold the log for a moment longer."""
+    for _ in range(20):
+        try:
+            LOG.unlink(missing_ok=True)
+            return
+        except PermissionError:
+            time.sleep(0.5)
+    LOG.unlink(missing_ok=True)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
