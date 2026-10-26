@@ -37,7 +37,7 @@ def test_example_map_loads():
     m = load_map(MAPS / "l_hall.toml")
     assert len(m.arena.rects) == 2
     assert len(m.walls) == 2 and len(m.pillars) == 1 and len(m.forests) == 1
-    assert m.sector_a.z == (0.8, 1.5)
+    assert m.sector_a.z == (1.5, 1.5)  # one altitude until phase 4
     assert m.sector_c.z == (0.0, 2.5)  # no z: floor to ceiling
 
 
@@ -72,6 +72,11 @@ def test_forest_number_means_fixed_value():
     f = parse_map(obstacles(forests=[forest])).forests[0]
     assert f.radius == (0.1, 0.1)
     assert f.height == (0.5, 1.5)
+
+
+def test_sector_a_z_can_be_a_band():
+    sectors = {"A": {"rect": [[0, 0], [4, 4]], "z": [0.8, 1.5]}, "C": {"rect": [[16, 0], [20, 4]]}}
+    assert parse_map(minimal(sectors=sectors)).sector_a.z == (0.8, 1.5)
 
 
 def test_sector_a_z_can_be_one_altitude():

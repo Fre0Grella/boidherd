@@ -137,9 +137,17 @@ def test_every_drone_carries_a_marker_red_for_leaders(world: str):
     assert drone_marker(True) != drone_marker(False)
 
 
-def test_sector_boxes_show_the_altitude_band(world: str):
-    # sector A: 11 x 6 m, z from 0.8 to 1.5; sector C: 8 x 6 m, floor to ceiling
+def test_sector_boxes_show_the_altitude_band():
+    # sector A: 4 x 6 m, z from 0.8 to 1.5; sector C: 4 x 8 m, floor to ceiling
+    a = {"rect": [[1, 1], [5, 7]], "z": [0.8, 1.5]}
+    doc: dict[str, object] = {
+        "version": 1,
+        "arena": {"ceiling": 2.5, "rects": [[[0, 0], [20, 8]]]},
+        "sectors": {"A": a, "C": {"rect": [[16, 0], [20, 8]]}},
+    }
+    course = build_course(parse_map(doc))
+    world = render_world(course, place_swarm(course, n=2, j=1, seed=0), "band")
     assert "translation 0 0 1.15\n" in world
-    assert "geometry Box { size 11 6 0.7 }" in world
+    assert "geometry Box { size 4 6 0.7 }" in world
     assert "translation 0 0 1.25\n" in world
-    assert "geometry Box { size 8 6 2.5 }" in world
+    assert "geometry Box { size 4 8 2.5 }" in world
