@@ -7,10 +7,11 @@ cruising, along its last heading taken above that speed. A drone slowed
 down by the flock ahead of it keeps pushing the way it was going instead of
 stalling outside C.
 
-It stops `settle_time` after it recognises C, not at once: a flock arrives
-behind its leaders, and drones stopping right at the edge would pile up
-there, the tail left outside. A few more seconds carry the flock across C,
-whatever its size, and need nothing but recognising C (design log, step 2).
+It stops once it has cruised `settle_distance` into C (timed: that distance
+at v_flock), not at once: a flock arrives behind its leaders, and drones
+stopping right at the edge would pile up there, the tail left outside. A
+few more metres carry the flock across C, whatever its size, and need
+nothing but recognising C (design log, step 2).
 """
 
 from util import Vec3
@@ -31,7 +32,8 @@ class Cruise:
             self._entered = now
         elif not in_c:
             self._entered = None
-        settled = self._entered is not None and now - self._entered >= self.p.settle_time
+        settle_time = self.p.settle_distance / self.p.v_flock
+        settled = self._entered is not None and now - self._entered >= settle_time
         if not go or settled:
             self.heading = None
             return None

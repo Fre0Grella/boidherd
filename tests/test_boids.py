@@ -2,8 +2,8 @@ import math
 
 import pytest
 
-from boids import BoidParams, Cruise, flock
-from boids.rules import braking_curve, cohesion, friction, repulsion, seek
+from boids import BoidParams, Cruise, flock, to_walls
+from boids.rules import braking_curve, cohesion, friction, repulsion, seek, walls
 from flight.sensing import Neighbour
 from util import ZERO, Vec3
 
@@ -71,12 +71,13 @@ def test_once_awake_it_keeps_its_last_heading_when_slowed_down():
     assert cruise.update(Vec3(0, 0.01, 0), now=0.1, go=True, in_c=False) == Vec3(1, 0, 0)
 
 
-def test_it_stops_settle_time_after_entering_c():
-    cruise, v = Cruise(P), Vec3(0.3, 0, 0)
+def test_it_stops_once_it_has_cruised_settle_distance_into_c():
+    p = BoidParams(v_flock=0.5, settle_distance=2.0)  # 4 s
+    cruise, v = Cruise(p), Vec3(0.3, 0, 0)
     cruise.update(v, now=0.0, go=True, in_c=False)
     assert cruise.update(v, now=1.0, go=True, in_c=True) == Vec3(1, 0, 0)  # just entered
-    assert cruise.update(v, now=1.0 + P.settle_time - 0.1, go=True, in_c=True) is not None
-    assert cruise.update(v, now=1.0 + P.settle_time, go=True, in_c=True) is None
+    assert cruise.update(v, now=4.9, go=True, in_c=True) is not None
+    assert cruise.update(v, now=5.0, go=True, in_c=True) is None
     assert cruise.update(Vec3(0.01, 0, 0), now=10.0, go=True, in_c=True) is None  # stays put
 
 
@@ -84,7 +85,8 @@ def test_leaving_c_restarts_the_clock():
     cruise, v = Cruise(P), Vec3(0.3, 0, 0)
     cruise.update(v, now=0.0, go=True, in_c=True)
     cruise.update(v, now=1.0, go=True, in_c=False)  # pushed out
-    assert cruise.update(v, now=P.settle_time + 0.5, go=True, in_c=True) is not None
+    settle_time = P.settle_distance / P.v_flock
+    assert cruise.update(v, now=settle_time + 0.5, go=True, in_c=True) is not None
 
 
 def test_the_heading_is_horizontal():
@@ -149,11 +151,67 @@ def test_neighbours_out_of_sight_are_ignored():
     assert flock(Vec3(), [far], P) == Vec3()
 
 
+# --- walls -------------------------------------------------------------------
+
+
+def test_a_wall_far_away_is_ignored():
+    assert walls(Vec3(0.5, 0, 0), [Vec3(10, 0, 0)], P) == Vec3()
+
+
+def test_a_wall_pushes_a_drone_at_rest_close_to_it_away():
+    push = walls(Vec3(), [Vec3(0.2, 0, 0)], P)
+    allowed = braking_curve(0.2, P.wall_slope, P.wall_braking)
+    assert push == Vec3(-(P.wall_speed - allowed), 0, 0)
+
+
+def test_a_wall_brakes_a_drone_flying_at_it_from_farther_than_one_at_rest():
+    toward = walls(Vec3(0.5, 0, 0), [Vec3(2.0, 0, 0)], P)
+    assert toward.x < 0 and walls(Vec3(), [Vec3(2.0, 0, 0)], P) == Vec3()
+
+
+def test_a_wall_ignores_height_and_a_drone_on_it():
+    assert walls(Vec3(), [Vec3(0.2, 0, 1.0)], P) == walls(Vec3(), [Vec3(0.2, 0, 0)], P)
+    assert walls(Vec3(), [Vec3()], P) == Vec3()
+
+
+def test_flock_adds_the_walls():
+    assert flock(Vec3(), [], P, to_walls=[Vec3(0.2, 0, 0)]).x < 0
+
+
+def test_to_walls_points_to_the_nearest_point_of_each_box():
+    boxes = [(2.0, -1.0, 3.0, 1.0), (-1.0, 4.0, 1.0, 5.0), (5.0, 5.0, 6.0, 6.0)]
+    assert to_walls(Vec3(0, 0, 1.2), boxes) == [Vec3(2, 0, 0), Vec3(0, 4, 0), Vec3(5, 5, 0)]
+
+
+def test_to_walls_is_zero_inside_a_box():
+    assert to_walls(Vec3(2.5, 0, 1), [(2.0, -1.0, 3.0, 1.0)]) == [Vec3()]
+
+
+# --- speed -------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("k", [0.5, 1.5])
+def test_the_rules_are_speed_free(k: float):
+    """At k times v_flock, with every velocity around k times as large, every term (and
+    so the wanted velocity) is k times as large: the same flock, faster."""
+    v = Vec3(0.8, 0.3, 0)  # well above wake_speed, also at k = 0.5
+    neighbours = [(Vec3(0.5, 0.2, 0), Vec3(0.2, 0.9, 0)), (Vec3(-2.2, 0.4, 0), Vec3(-0.5, 0, 0))]
+    walls_at = [Vec3(0, 0.6, 0), Vec3(2.0, 0, 0)]  # both parts of the braking curve
+    for extra in ({"heading": Vec3(0, 1, 0)}, {"to_goal": Vec3(2.0, -1.0, 0)}):
+
+        def wanted(s: float, p: BoidParams) -> Vec3:
+            heard = [Neighbour(1, o, u * s) for o, u in neighbours]
+            return flock(v * s, heard, p, to_walls=walls_at, **extra)  # noqa: B023
+
+        slow, fast = wanted(1, P), wanted(k, BoidParams(v_flock=P.v_flock * k))
+        assert (fast.x, fast.y) == pytest.approx((slow.x * k, slow.y * k))
+
+
 # --- limits, vertical --------------------------------------------------------
 
 
 def test_wanted_velocity_is_capped():
-    p = BoidParams(max_speed=0.8, repulsion_gain=5.0)
+    p = BoidParams(v_flock=0.5, max_speed=1.6, repulsion_gain=10.0)  # 0.8 m/s
     assert flock(Vec3(), [at(0.05), at(0, 0.05)], p).length() == pytest.approx(0.8)
 
 

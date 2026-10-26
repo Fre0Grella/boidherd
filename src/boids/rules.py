@@ -15,8 +15,18 @@ absolute position.
   still brake within their distance (the braking curve), the excess is
   corrected: velocity alignment that is strong up close, slack far away;
 - cohesion (Reynolds): toward the neighbours' centre;
+- walls: the same braking-curve rule against a shill agent, a virtual
+  drone at the wall's nearest point flying away from it: a drone may
+  approach a wall only as fast as it could still stop before it;
 - leaders only: cruise toward the goal instead, the direction mixed with
   their own heading (Couzin 2005), slowing down near the goal.
+
+Walls are the one thing a drone knows from the map rather than hears: it
+gets them as offsets to their nearest points (obstacles.py, map + GPS).
+
+Every speed and rate in BoidParams is in units of v_flock (params.py), so
+each term multiplies by it here: speeds and rates once, decelerations
+twice.
 
 Nothing keeps a velocity by itself: a drone with no reason to move brakes
 to a stop within ~tau (the flight layer). Cruising is what keeps a flock
@@ -38,17 +48,21 @@ def flock(
     p: BoidParams,
     heading: Vec3 | None = None,
     to_goal: Vec3 | None = None,
+    to_walls: list[Vec3] | None = None,
 ) -> Vec3:
     """The wanted velocity (m/s, world frame). `heading`: cruise along it (a unit vector,
     see cruise.py). `to_goal`, for a leader on its way: from the drone to its goal, metres
-    (then it cruises toward it instead)."""
+    (then it cruises toward it instead). `to_walls`: from the drone to the nearest point of
+    each wall, metres."""
     seen = [n for n in neighbours if within(n.offset, p.perception_radius, p.vertical_scale)]
-    total = repulsion(seen, p) + friction(velocity, seen, p) + cohesion(seen) * p.cohesion
+    total = repulsion(seen, p) + friction(velocity, seen, p)
+    total = total + cohesion(seen) * (p.cohesion * p.v_flock)
+    total = total + walls(velocity, to_walls or [], p)
     if to_goal is not None:
         total = total + seek(velocity, to_goal, p)
     elif heading is not None:
         total = total + heading * p.v_flock
-    return total.scaled_z(p.vertical_gain).clamped(p.max_speed)
+    return total.scaled_z(p.vertical_gain).clamped(p.max_speed * p.v_flock)
 
 
 def braking_curve(distance: float, slope: float, deceleration: float) -> float:
@@ -76,26 +90,48 @@ def repulsion(neighbours: list[Neighbour], p: BoidParams) -> Vec3:
     for n in neighbours:
         d = ellipsoidal_distance(n.offset, p.vertical_scale)
         if 0 < d < p.repulsion_radius:
-            push = push - n.offset.unit() * (p.repulsion_gain * (p.repulsion_radius - d))
+            gain = p.repulsion_gain * p.v_flock
+            push = push - n.offset.unit() * (gain * (p.repulsion_radius - d))
     return push
 
 
 def friction(velocity: Vec3, neighbours: list[Neighbour], p: BoidParams) -> Vec3:
     """For each neighbour, the part of our velocity difference beyond what the braking
     curve allows at its distance (at least friction_slack), toward its velocity."""
+    v = p.v_flock
     total = Vec3()
     for n in neighbours:
         gap = n.velocity - velocity
         allowed = max(
-            p.friction_slack,
+            p.friction_slack * v,
             braking_curve(
                 ellipsoidal_distance(n.offset, p.vertical_scale) - p.friction_radius,
-                p.friction_slope,
-                p.friction_braking,
+                p.friction_slope * v,
+                p.friction_braking * v**2,
             ),
         )
         if gap.length() > allowed:
             total = total + gap.unit() * (p.friction_gain * (gap.length() - allowed))
+    return total
+
+
+def walls(velocity: Vec3, to_walls: list[Vec3], p: BoidParams) -> Vec3:
+    """For each wall, the part of my velocity's difference from its shill's (wall_speed away
+    from the wall) beyond what the braking curve allows at my distance from the wall. Flat:
+    walls are full height until phase 4. A drone on a wall (offset zero) gets no push.
+    robotsim's Shill_Obstacle_LinSqrt."""
+    v = p.v_flock
+    total = Vec3()
+    for offset in to_walls:
+        flat = offset.horizontal()
+        if flat.length() == 0:
+            continue
+        gap = (flat.unit() * -(p.wall_speed * v) - velocity).horizontal()
+        allowed = braking_curve(
+            flat.length() - p.wall_radius, p.wall_slope * v, p.wall_braking * v**2
+        )
+        if gap.length() > allowed:
+            total = total + gap.unit() * (gap.length() - allowed)
     return total
 
 

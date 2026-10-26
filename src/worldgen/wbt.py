@@ -2,9 +2,9 @@
 
 One small function per kind of node, joined by `render_world()`. The world
 is self-contained: each drone finds its takeoff altitude, sector C (which it
-recognises, and leaders seek) and whether it leads in its `customData`, and
-the referee finds the sectors in its `controllerArgs`, so no controller ever
-reads a map file.
+recognises, and leaders seek), the walls it steers clear of and whether it
+leads in its `customData`, and the referee finds the sectors in its
+`controllerArgs`, so no controller ever reads a map file.
 """
 
 import json
@@ -67,7 +67,7 @@ def render_world(
         *(_wall(w, f"wall {i}", course.ceiling, ORANGE) for i, w in enumerate(course.walls)),
         *(_pillar(p, f"pillar {i}", course.ceiling) for i, p in enumerate(course.pillars)),
         _referee(course),
-        *(_drone(d, course.sector_c, ir_range, controller, markers) for d in swarm),
+        *(_drone(d, course, ir_range, controller, markers) for d in swarm),
     ]
     return "\n".join(nodes)
 
@@ -243,12 +243,12 @@ def _referee(course: Course) -> str:
     )
 
 
-def _drone(drone: Drone, goal: Sector, ir_range: float, controller: str, marker: bool) -> str:
+def _drone(drone: Drone, course: Course, ir_range: float, controller: str, marker: bool) -> str:
     x, y = drone.xy
-    r = goal.area
     data: dict[str, object] = {
         "altitude": round(drone.altitude, 4),
-        "sector_c": [r.x_min, r.y_min, r.x_max, r.y_max],  # recognised, by leaders also sought
+        "sector_c": _corners(course.sector_c.area),  # recognised, by leaders also sought
+        "walls": [_corners(w.rect) for w in course.boundary],  # the map, for the shill agents
     }
     if drone.leader:
         data["leader"] = True
@@ -327,6 +327,10 @@ def _appearance(
     if glow:
         extra += f" emissiveColor {rgb} emissiveIntensity {_num(glow)}"
     return f"PBRAppearance {{ baseColor {rgb} roughness 1 metalness 0{extra} }}"
+
+
+def _corners(r: Rect) -> list[float]:
+    return [round(v, 4) for v in (r.x_min, r.y_min, r.x_max, r.y_max)]
 
 
 def _rect_arg(r: Rect) -> str:

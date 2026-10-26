@@ -1022,6 +1022,105 @@ set off at 16 s, so the 29 m took ~54 s at 0.50 m/s (Reynolds, phase 2:
 79 s to 90%, from a 16 s start too). The flock still sits in C's near
 half, held by its leaders at the centre; 5 s keeps it 1.5 m off the edge.
 
+### Step 3: walls from the map
+
+**The rule.** Vásárhelyi's shill agents, as robotsim's
+`Shill_Obstacle_LinSqrt`: at the nearest point of a wall sits a virtual
+drone flying away from the wall at `wall_speed`; my velocity may differ
+from its velocity by at most the braking curve of my distance to the
+wall, and the excess is corrected (gain 1, no separate weight). It is the
+friction rule again, against the wall: a drone may fly at a wall only as
+fast as it can still stop before it. Defaults scaled from robotsim as the
+rest (V_Shill 6 m/s → 0.75, Slope_Shill 0.4 → 0.5 1/s, Acc_Shill 2.5 →
+0.4 m/s², R_0_Shill 0).
+
+What it means in numbers, at 0.5 m/s (distances stay the same at any
+speed, see "Speed" below):
+
+- A drone cruising at a wall at 0.5 m/s starts braking 2.75 m from it,
+  where the braking curve reaches the 1.25 m/s between it and the shill.
+- A drone at rest is pushed until it is 1.5 m from the wall, where the
+  curve reaches 0.75 m/s.
+- Pressed by its cruise (0.5 m/s), it holds at 0.5 m.
+
+**Which walls, and the concave arena.** robotsim handles a square or
+circular arena, and leaves the general polygon as a TODO: "with concave
+polygons it is not trivial". We don't need it. The course already builds
+the arena outline as axis-aligned boxes (`maps.course._boundary_walls`),
+and each box is convex. So each box is an obstacle with its own shill,
+like robotsim's obstacles. Its nearest point is a clamp of my position
+into the box (`boids/obstacles.py`), so the controller needs no shapely.
+
+The one oddity is at a concave corner of the arena (the L hall's inner
+corner), where two boxes meet: a drone right at the corner feels both,
+so it gets twice the push there. That's harmless, so it's left as is.
+
+The drones get the boxes in `customData` ("walls"), with GPS for their
+own position: option 1 of the sensing decision, map + GPS. Only the
+arena outline goes in for now. Map walls and pillars come in step 4.
+
+**Results.**
+
+- **`open`, 20 drones, j = 2:** unchanged. 90% in C at 69.9 s, closest
+  pair 0.33 m. The walls are never closer than A's own 1 m.
+- **The bare L hall (`maps/l_turn.toml`, new):** the `l_hall` map without
+  its forest and gap wall, which the drones don't know about yet. With
+  20 drones and j = 2 the flock turns the 90° corner as one group,
+  polarization 1.00 throughout. 90% in C at 118 s, all 20 by 126 s,
+  closest pair 0.30 m. No drone ever came closer to a wall than 1.01 m,
+  and that was at spawn. No crashes. Point masses predicted 124 s.
+- **Leaderless (j = 0, `open`, seeds 1–3):** no crash, never closer than
+  1.04 m to a wall.
+
+**Leaderless flocks don't pick a random direction any more.** A's back
+edge is 1 m from the room's wall, so before the start the wall already
+pushes the nearest drones off it, to 1.5 m. At the start the flock wakes
+up already moving that way, which is toward C. All three seeds ended in
+C (seed 3 split in two at wake-up, 18/20 in C).
+
+So the j = 0 baseline of a sweep now measures "away from the back wall",
+not luck. That could be fixed by spawning A farther from the walls. Not
+changed: leaderless runs are the control case, not the mission.
+
+**Speed: 1 m/s, and one number for it.** At 0.5 m/s the flock looked
+slow, so the cruise speed went up. Raising `v_flock` alone is unsafe. A
+drone pressed at a wall by its cruise is held back by at most the shill's
+`wall_speed`, so once v_flock passes `wall_speed` the drone hits the wall.
+Every speed-dependent setting has to move with v_flock: speeds and rates
+(1/s) in proportion, decelerations with its square, times inversely.
+Distances stay put.
+
+So the settings are now written in units of v_flock. `wall_speed = 1.5`
+means 1.5 × v_flock, and `settle_time` became `settle_distance` (2.5 m
+into C). The rules multiply each term back out, so v_flock is the one
+knob. robotsim's defaults now map to ours with the cruise speed ÷ 4
+instead of ÷ 8; distances are still ÷ 10.
+
+In the maths the model is then **exactly speed-free**: at k times v_flock,
+with every velocity k times as large, every term is k times as large. The
+same flock flies the same paths, faster. `test_the_rules_are_speed_free`
+checks this for both branches of the braking curve. A mutation check
+confirmed it fails when any single factor of v_flock is left out.
+
+The robot is not speed-free. `velocity_tau`, `max_acceleration` and the
+attitude loops are fixed, so a faster flock reacts later relative to its
+speed. Above ~1.25 m/s the braking curves would ask for more than the
+2.5 m/s² the flight layer allows.
+
+| `l_turn`, 20 drones, j = 2 | 90% in C | closest pair | closest to a wall |
+|---|---|---|---|
+| 0.5 m/s (altitudes 0.8-1.5 m) | 118 s | 0.30 m | 1.01 m |
+| 1.0 m/s, settle 5 s, all doubled by hand (altitudes 0.8-1.5) | 70.4 s | 0.22 m | 0.70 m |
+| 1.0 m/s defaults, settle 2.5 m (one altitude, 1.5 m) | 71.7 s | 0.18 m | 0.73 m |
+
+On point masses `v_flock = 0.5` reproduces the old run to the
+millisecond, so the rewrite changed nothing at 0.5 m/s.
+
+At 1 m/s the closest pair is the price of speed. In the last run it
+happened at 18.2 s, while the flock was starting from rest: 8 cm between
+bodies, no contact. With one altitude, height no longer separates the
+drones. No crashes.
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?
