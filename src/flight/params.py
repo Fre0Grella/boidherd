@@ -30,6 +30,12 @@ class FlightParams:
     climb_rate: float = 0.4  # m/s, how fast the altitude setpoint then rises
     climb_slowdown: float = 1.0  # 1/s: near the target the setpoint rises at this x the gap
     hover_tolerance: float = 0.05  # m, altitude error under which the drone counts as hovering
+    # following a wanted velocity (control.acceleration_for): the gap closes with this time
+    # constant, at most at max_acceleration (below g tan(max_tilt) = 5.7 m/s^2). Measured with
+    # tools/flight_test.py: the attitude loops alone take ~0.27 s to 63% of a step; at 0.3 s
+    # the drone tracks the ideal curve without overshoot, at 0.2 s it overshoots 15%
+    velocity_tau: float = 0.3  # s
+    max_acceleration: float = 2.5  # m/s^2
     # turning accelerations into tilt
     # 30 deg: holding altitude needs 1/cos 30 = 1.15 x the weight, 56% of the real drone's
     # thrust, which leaves room to correct; a = g tan 30 = 5.7 m/s^2. (Bitcraze's firmware

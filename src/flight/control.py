@@ -42,6 +42,13 @@ class Attitude:
     pitch_rate: float = 0.0
 
 
+def acceleration_for(wanted: Vec3, velocity: Vec3, tau: float, max_acceleration: float) -> Vec3:
+    """The horizontal acceleration that brings `velocity` to `wanted`: the gap closes
+    exponentially with time constant `tau`, never faster than `max_acceleration` (Virágh
+    et al. 2014: a robot is its relaxation time and its acceleration limit)."""
+    return ((wanted - velocity).horizontal() * (1 / tau)).clamped(max_acceleration)
+
+
 def tilt_for(acceleration: Vec3, yaw: float, max_tilt: float) -> tuple[float, float]:
     """The (roll, pitch) that gives a horizontal world-frame acceleration.
 

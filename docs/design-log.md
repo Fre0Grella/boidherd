@@ -924,6 +924,29 @@ obstacles): the flock and the leaders as in phase 2. 3. Course geometry
 in `customData`, shills for the arena walls. 4. Obstacles: pillars, then
 the wall with a gap. 5. Sweep again.
 
+### Step 1: the velocity layer
+
+`flight.acceleration_for(wanted, velocity, tau, a_max)` turns a wanted
+velocity into the acceleration the autopilot already flies:
+(v_d - v) / tau, horizontal, capped at a_max (2.5 m/s^2). The autopilot
+keeps its acceleration input; the controller puts this step in front.
+`tools/flight_test.py` now scripts velocities (+x 0.5 m/s, stop, +y 1
+m/s, a 2 m/s reversal, stop) and compares each step with a point mass
+of the same tau and a_max (seed 3, yaw -47 deg, 16 ms):
+
+| tau | 63% of a 0.5 / 1 m/s step (ideal) | 2 m/s reversal, 63% / 90% (ideal) | overshoot |
+|---|---|---|---|
+| 0.5 s | 0.51 / 0.51 s (0.50) | 0.66 / 1.14 s (0.56 / 1.22) | 0% |
+| 0.3 s | 0.35 / 0.40 s (0.30 / 0.32) | 0.64 / 0.90 s (0.51 / 0.90) | 0% |
+| 0.2 s | 0.29 / 0.40 s (0.19 / 0.27) | 0.64 / 0.86 s (0.51 / 0.78) | 15% / 5% |
+| 0.1 s | 0.27 / 0.40 s (0.13 / 0.26) | 0.64 / 0.85 s (0.51 / 0.74) | 33% / 14% |
+
+Below ~0.3 s the 63% time stops shrinking (0.27 s for a small step):
+that is the attitude loops' own speed, the drone's tau_CTRL in Virágh's
+terms, and asking for more only adds overshoot. Chosen: tau = 0.3 s,
+the fastest with no overshoot, about 0.05-0.1 s behind the ideal curve.
+No drift in the hold, altitude within 5 mm, no yaw change.
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?

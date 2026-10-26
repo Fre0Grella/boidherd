@@ -2,11 +2,38 @@ import math
 
 import pytest
 
-from flight import Attitude, Autopilot, FlightParams, MotorMixer, Phase, tilt_for
+from flight import (
+    Attitude,
+    Autopilot,
+    FlightParams,
+    MotorMixer,
+    Phase,
+    acceleration_for,
+    tilt_for,
+)
 from flight.params import HOVER_SPEED
 from util import Vec3
 
 LEVEL = Attitude(roll=0.0, pitch=0.0, yaw=0.0, yaw_rate=0.0, altitude=1.0)
+
+
+# --- acceleration_for: a wanted velocity becomes an acceleration -------------
+
+
+def test_the_velocity_gap_closes_with_time_constant_tau():
+    a = acceleration_for(Vec3(1, 0, 0), Vec3(0.5, 0, 0), tau=0.5, max_acceleration=10)
+    assert (a.x, a.y, a.z) == pytest.approx((1.0, 0, 0))  # 0.5 m/s gap in 0.5 s
+
+
+def test_the_acceleration_is_capped_along_the_gap():
+    a = acceleration_for(Vec3(-3, 4, 0), Vec3(), tau=0.5, max_acceleration=2)
+    assert a.length() == pytest.approx(2)
+    assert (a.x, a.y) == pytest.approx((-1.2, 1.6))  # still toward the wanted velocity
+
+
+def test_vertical_velocity_is_left_to_the_altitude_loop():
+    a = acceleration_for(Vec3(0, 0, 1), Vec3(0, 0, -1), tau=0.5, max_acceleration=10)
+    assert a.length() == 0
 
 
 # --- tilt_for: signs taken from Webots' Crazyflie example ------------------

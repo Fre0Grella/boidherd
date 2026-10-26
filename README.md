@@ -46,7 +46,7 @@ Headless runs that report numbers (start them from PowerShell: Webots
 crashes when started from Git Bash):
 
 ```
-uv run tools/flight_test.py      # one drone follows scripted accelerations
+uv run tools/flight_test.py      # one drone follows scripted velocities
 uv run tools/takeoff_test.py     # a whole swarm takes off; -n, --map, --duration
 uv run tools/ir_test.py          # IR neighbour sensing against ground truth
 uv run tools/flock_test.py       # a leaderless swarm flocks: groups, spacing, speed
