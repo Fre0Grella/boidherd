@@ -24,10 +24,13 @@ from collections import defaultdict
 from pathlib import Path
 
 from headless import RunError, run_until
+from shapely import box
 from shapely.geometry import Point
 from shapely.geometry.base import BaseGeometry
+from shapely.ops import unary_union
 
 from boids import BoidParams
+from maps.course import Course
 from maps.model import Rect
 from util.overrides import parse
 from worldgen.cli import generate
@@ -72,7 +75,7 @@ def main() -> int:
     targets = {d.id: d.altitude for d in result.swarm}
     link = BoidParams(**params.get("boids", {})).perception_radius
     goal = result.course.sector_c.area
-    return report(targets, result.course.area.exterior, goal, link, args.duration)
+    return report(targets, solid(result.course), goal, link, args.duration)
 
 
 def report(
@@ -132,6 +135,14 @@ def report(
     crashed = sorted(i for i, s in end.items() if s[2] < 0.1)
     print("crashes:   " + (f"{crashed}" if crashed else "none"))
     return 1 if touched or crashed else 0
+
+
+def solid(course: Course) -> BaseGeometry:
+    """Everything a drone can hit, seen from above: the arena's outline, walls and pillars."""
+    shapes = [course.area.exterior]
+    shapes += [box(w.rect.x_min, w.rect.y_min, w.rect.x_max, w.rect.y_max) for w in course.walls]
+    shapes += [Point(p.center).buffer(p.radius) for p in course.pillars]
+    return unary_union(shapes)
 
 
 def _in(r: Rect, v: State) -> bool:

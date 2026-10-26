@@ -2,16 +2,19 @@
 
     uv run tools/sweep.py                       # n 10 20 40, j 0 1 2 4 8, seeds 0 1 2
     uv run tools/sweep.py -n 20 -j 0 2 --seeds 0 --duration 90
+    uv run tools/sweep.py --map l_hall --budget 3300
 
-Runs every (n, j, seed) on the open map, each headless until `--duration`
+Runs every (n, j, seed) on a map (open by default), seed by seed so a sweep
+cut short still covers every n and j, each headless until `--duration`
 simulated seconds, until every drone is in C, or until a drone crashes, and
-appends one row per run to logs/sweep_results.csv as soon as it finishes.
+appends one row per run to logs/sweep_<map>.csv as soon as it finishes.
 Runs already in that file are skipped, so a stopped sweep picks up where it
-left off. Per run: when the flock started (all hovering), when 90% and when
+left off; with `--budget`, no run starts once that many wall-clock seconds
+have gone. Per run: when the flock started (all hovering), when 90% and when
 all drones were in C, and at the last step how many were in C, the groups,
 the drones in a group without a leader (they never hear where C is), the
 polarization; the closest two drones ever got, how close any came to a
-wall (nothing avoids walls before phase 3) and the crashed drones. Run it
+wall, a pillar or the arena's outline, and the crashed drones. Run it
 from PowerShell.
 """
 
@@ -24,7 +27,7 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
-from flock_test import ARRIVED, HOVER_TOLERANCE, State, _groups, _in, _polarization
+from flock_test import ARRIVED, HOVER_TOLERANCE, State, _groups, _in, _polarization, solid
 from headless import RunError, run_until
 from shapely.geometry import Point
 
@@ -36,7 +39,6 @@ from worldgen.wbt import TIME_STEP
 ROOT = Path(__file__).resolve().parents[1]
 NAME = "sweep_run"  # the world; the referee logs it to logs/sweep_run.csv
 LOG = ROOT / "logs" / f"{NAME}.csv"
-RESULTS = ROOT / "logs" / "sweep_results.csv"
 CRASHED = 0.1  # m: a drone this low after takeoff is down
 ROW_BYTES = 80  # a referee row is ~60 bytes
 COLUMNS = [
@@ -54,17 +56,23 @@ def main() -> int:
     parser.add_argument("--duration", type=float, default=150.0, help="simulated seconds")
     parser.add_argument("--timeout", type=float, default=1800, help="wall-clock seconds per run")
     parser.add_argument("--time-step", type=int, default=TIME_STEP, help="ms")
+    parser.add_argument("--budget", type=float, help="wall-clock seconds; no run starts after")
     parser.add_argument("--set", nargs="*", default=[], metavar="SECTION.NAME=VALUE",
                         help="override settings, e.g. boids.goal_speed=0.4")  # fmt: skip
     args = parser.parse_args()
+    results = ROOT / "logs" / f"sweep_{args.map}.csv"
+    began = time.monotonic()
     params = parse(args.set)
     link = BoidParams(**params.get("boids", {})).perception_radius
 
-    done = _done_runs()
-    runs = [r for r in itertools.product(args.n, args.j, args.seeds)
-            if r not in done and r[1] <= r[0]]  # fmt: skip
-    print(f"{len(runs)} runs to go ({len(done)} already in {RESULTS.name})", flush=True)
+    done = _done_runs(results)
+    runs = [(n, j, seed) for seed, n, j in itertools.product(args.seeds, args.n, args.j)
+            if (n, j, seed) not in done and j <= n]  # fmt: skip
+    print(f"{len(runs)} runs to go ({len(done)} already in {results.name})", flush=True)
     for k, (n, j, seed) in enumerate(runs, 1):
+        if args.budget is not None and time.monotonic() - began > args.budget:
+            print(f"budget of {args.budget:.0f} s used up, {len(runs) - k + 1} runs left")
+            break
         result = generate(
             ROOT / "maps" / f"{args.map}.toml", ROOT / "worlds", ROOT / "controllers",
             n=n, j=j, seed=seed, name=NAME, time_step=args.time_step,
@@ -83,9 +91,9 @@ def main() -> int:
             continue
         leaders = {d.id for d in result.swarm if d.leader}
         targets = {d.id: d.altitude for d in result.swarm}
-        row = measure(targets, leaders, result.course.area.exterior, goal, link)
+        row = measure(targets, leaders, solid(result.course), goal, link)
         row.update(n=n, j=j, seed=seed, time_step=args.time_step, wall=round(wall))
-        _append(row)
+        _append(results, row)
         print(f"[{k}/{len(runs)}] n {n} j {j} seed {seed}: " + ", ".join(
             f"{c} {row[c]}" for c in ("simulated", "arrived", "all_in", "uninformed", "crashed")
         ) + f" ({wall:.0f} s wall)", flush=True)  # fmt: skip
@@ -173,16 +181,16 @@ def _last_step(n: int) -> tuple[float | None, dict[int, State]]:
     return max(full), steps[max(full)]
 
 
-def _done_runs() -> set[tuple[int, int, int]]:
-    if not RESULTS.exists():
+def _done_runs(results: Path) -> set[tuple[int, int, int]]:
+    if not results.exists():
         return set()
-    with open(RESULTS, newline="") as f:
+    with open(results, newline="") as f:
         return {(int(r["n"]), int(r["j"]), int(r["seed"])) for r in csv.DictReader(f)}
 
 
-def _append(row: dict[str, object]) -> None:
-    new = not RESULTS.exists()
-    with open(RESULTS, "a", newline="") as f:
+def _append(results: Path, row: dict[str, object]) -> None:
+    new = not results.exists()
+    with open(results, "a", newline="") as f:
         out = csv.DictWriter(f, COLUMNS)
         if new:
             out.writeheader()
