@@ -54,13 +54,12 @@ def test_one_crazyflie_per_drone_standing_on_the_floor(world: str):
         assert float(z) == CRAZYFLIE_REST_Z
 
 
-def test_only_leaders_know_the_goal(world: str, course: Course):
+def test_every_drone_recognises_c_and_three_lead(world: str, course: Course):
     data = custom_data(world)
     assert len(data) == 12
-    leaders = [d for d in data if "goal" in d]
-    assert len(leaders) == 3
     c = course.sector_c.area
-    assert all(d["goal"] == [c.x_min, c.y_min, c.x_max, c.y_max] for d in leaders)
+    assert all(d["sector_c"] == [c.x_min, c.y_min, c.x_max, c.y_max] for d in data)
+    assert sum(d.get("leader") is True for d in data) == 3
     z_min, z_max = course.sector_a.z
     assert all(z_min <= float(str(d["altitude"])) <= z_max for d in data)
 
@@ -127,7 +126,7 @@ def test_strings_are_escaped():
 def test_every_drone_carries_a_marker_red_for_leaders(world: str):
     drones = re.split(r"^DEF DRONE_\d+ Crazyflie \{$", world, flags=re.M)[1:]
     for drone in drones:
-        leader = "goal" in drone  # in customData, quotes are escaped
+        leader = 'leader\\":true' in drone  # in customData, quotes are escaped
         assert drone_marker(leader) in drone
     assert world.count(drone_marker(True)) == 3
     assert world.count(drone_marker(False)) == 9

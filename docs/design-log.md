@@ -947,6 +947,47 @@ terms, and asking for more only adds overshoot. Chosen: tau = 0.3 s,
 the fastest with no overshoot, about 0.05-0.1 s behind the ideal curve.
 No drift in the hold, altitude within 5 mm, no yaw change.
 
+### Step 2: the model as rules, open room
+
+`boids.flock` now returns a wanted velocity: repulsion + friction +
+Reynolds cohesion, plus either the leaders' seek or, when the controller
+allows it, self-propulsion; capped at `max_speed`. The parameters start
+from robotsim's defaults scaled to our speed and spacing (params.py).
+
+**The start sequence (mission clock).** Takeoff; until `go_time` (16 s,
+all hover by ~6 s) the flock forms with no cruise and no goal; from then
+leaders seek the centre of C and every drone may cruise, except inside C.
+A shared start time tells followers nothing about where C is.
+Self-propulsion follows the drone's own heading, which is noise at hover,
+so it is off below `wake_speed` (0.1 m/s) and full from twice that: at
+GO the leaders move first, their neighbours get dragged above the
+threshold and cruise the same way. A leader's direction mixes its heading
+with the goal (Couzin's weight, `goal_weight` = 1); within
+`arrive_radius` it slows to stop at the centre.
+
+**Without cruise a drone stops by itself.** The wanted velocity has no
+"keep going" term: no neighbours and no cruise means v_d = 0, braked in
+~tau. Cruising is what keeps a flock moving; inside C it stops.
+
+**Friction gain: robotsim's 1 makes the drones jiggle.** A point-mass
+check (first-order tau = 0.3 s, a_max, IR one step late, even with 0.2 s
+of extra attitude lag) flew cleanly; Webots did not: cruise 0.3-0.4 m/s,
+polarization 0.8-0.9, 90% in C at 127 s, and in C the drones kept moving
+at ~0.2 m/s. A resting flock (`go_time` = 1000: no cruise, no leaders)
+jiggled the same way (0.2 m/s, random headings, centre still), so it is
+neither cruise nor leaders. Friction sums over every neighbour within
+2 m, ~10 of them: at gain 1 a drone asks to remove ~10x its velocity
+difference, so the velocity loop closes in tau / 11 ~ 0.03 s, ten times
+faster than the drone can tilt (~0.27 s, step 1); the hover noise that
+point masses lack excites it (Virágh's delay instability, through the
+gain). At 0.2 the resting flock settles to 0.01 m/s by 36 s.
+
+| 20 drones, j = 2, `open`, 150 s | cruise | polarization | in C | 90% in C | closest |
+|---|---|---|---|---|---|
+| point masses, friction 1 | 0.49 m/s | 1.00 | all, still | 95 s | 0.35 m |
+| Webots, friction 1 | 0.3-0.4 m/s | 0.8-0.9 | all, moving 0.2 m/s | 127 s | 0.24 m |
+| Webots, friction 0.2 | 0.50 m/s | 1.00 | all, still (0.02 m/s) | 106 s | 0.32 m |
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?

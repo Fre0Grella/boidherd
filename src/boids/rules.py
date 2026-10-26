@@ -1,24 +1,29 @@
-"""Reynolds' three rules, a speed limit and the leaders' goal: one world-frame acceleration.
+"""The flocking rules: one wanted velocity (world frame) from what a drone hears.
 
-Each rule only sees what IR tells a drone about its neighbours (where they
-are relative to it, and how they move) and the drone's own velocity; a
-follower never needs its absolute position.
+Vásárhelyi et al. (2018), the model of the authors' simulator (csviragh/
+robotsim), plus Reynolds' cohesion and Couzin's informed leaders. Each term
+is a velocity; their sum is capped at `max_speed`, and the flight layer
+turns it into an acceleration (flight.acceleration_for). Each rule only
+sees what IR tells a drone about its neighbours (where they are relative to
+it, how they move) and its own velocity; a follower never needs its
+absolute position.
 
-- separation: away from neighbours that are too close, harder the closer
-  they are (zero at the edge of the zone, so it doesn't switch on abruptly);
-- alignment: toward the neighbours' mean velocity;
-- cohesion: toward the neighbours' centre;
-- goal, leaders only: toward a cruise velocity pointing at the goal, slowing
-  down near it (Reynolds 1999: seek, then arrive). The leader works out the
-  offset to the goal from its own position; the rules only get the offset.
+- self-propulsion: cruise at `v_flock` the way I am going, once the mission
+  has started and while I am outside C (the controller decides);
+- repulsion: away from neighbours inside `repulsion_radius`, linearly;
+- friction: two neighbours may differ in velocity only by what they could
+  still brake within their distance (the braking curve), the excess is
+  corrected: velocity alignment that is strong up close, slack far away;
+- cohesion (Reynolds): toward the neighbours' centre;
+- leaders only: cruise toward the goal instead, the direction mixed with
+  their own heading (Couzin 2005), slowing down near the goal.
 
-There is no drag: the rules only damp motion relative to the neighbours, so
-a leaderless flock keeps its drift. Kept on purpose: a drifting flock is
-likelier to meet a leader than one that stands still (design log).
-
-The sum is weighted (Reynolds 1987 also describes a prioritised sum; not
-needed yet), its vertical part scaled by `vertical_gain`, then capped.
+Nothing keeps a velocity by itself: a drone with no reason to move brakes
+to a stop within ~tau (the flight layer). Cruising is what keeps a flock
+moving.
 """
+
+import math
 
 from flight.sensing import Neighbour
 from util import Vec3
@@ -28,36 +33,75 @@ from .zone import ellipsoidal_distance, within
 
 
 def flock(
-    velocity: Vec3, neighbours: list[Neighbour], p: BoidParams, to_goal: Vec3 | None = None
+    velocity: Vec3,
+    neighbours: list[Neighbour],
+    p: BoidParams,
+    cruise: bool = False,
+    to_goal: Vec3 | None = None,
 ) -> Vec3:
-    """The acceleration (m/s^2, world frame) the rules ask for. `to_goal`, for a leader
-    on its way: from the drone to its goal, metres."""
+    """The wanted velocity (m/s, world frame). `cruise`: self-propulsion is on. `to_goal`,
+    for a leader on its way: from the drone to its goal, metres (then it cruises toward it)."""
     seen = [n for n in neighbours if within(n.offset, p.perception_radius, p.vertical_scale)]
-    total = (
-        separation(seen, p)
-        + alignment(velocity, seen) * p.alignment
-        + cohesion(seen) * p.cohesion
-        + speed_limit(velocity, p)
-    )
+    total = repulsion(seen, p) + friction(velocity, seen, p) + cohesion(seen) * p.cohesion
     if to_goal is not None:
-        total = total + goal(velocity, to_goal, p)
-    return total.scaled_z(p.vertical_gain).clamped(p.max_acceleration)
+        total = total + seek(velocity, to_goal, p)
+    elif cruise:
+        total = total + self_propulsion(velocity, p)
+    return total.scaled_z(p.vertical_gain).clamped(p.max_speed)
 
 
-def separation(neighbours: list[Neighbour], p: BoidParams) -> Vec3:
+def braking_curve(distance: float, slope: float, deceleration: float) -> float:
+    """The highest speed from which a drone still stops within `distance`: v^2 = 2 a d far
+    away, a gentler straight line (slope * distance) over the last stretch, 0 at or below 0.
+    Vásárhelyi et al. (2018), robotsim's VelDecayLinSqrt."""
+    if distance <= 0 or slope <= 0 or deceleration <= 0:
+        return 0.0
+    linear = slope * distance
+    if linear < deceleration / slope:
+        return linear
+    return math.sqrt(2 * deceleration * distance - (deceleration / slope) ** 2)
+
+
+def self_propulsion(velocity: Vec3, p: BoidParams) -> Vec3:
+    """Cruise at v_flock along my heading; nothing below wake_speed, where the heading is
+    noise, full from twice that."""
+    return velocity.unit() * (p.v_flock * _wake(velocity, p))
+
+
+def seek(velocity: Vec3, to_goal: Vec3, p: BoidParams) -> Vec3:
+    """A leader's cruise: toward the goal mixed with its heading (weight goal_weight to 1),
+    at v_flock, slowing down within arrive_radius so it stops there."""
+    heading = velocity.unit() * _wake(velocity, p)
+    direction = (heading + to_goal.unit() * p.goal_weight).unit()
+    return direction * (p.v_flock * min(1.0, to_goal.length() / p.arrive_radius))
+
+
+def repulsion(neighbours: list[Neighbour], p: BoidParams) -> Vec3:
     push = Vec3()
     for n in neighbours:
         d = ellipsoidal_distance(n.offset, p.vertical_scale)
-        if 0 < d < p.separation_radius:
-            push = push - n.offset.unit() * (p.separation * (p.separation_radius / d - 1))
+        if 0 < d < p.repulsion_radius:
+            push = push - n.offset.unit() * (p.repulsion_gain * (p.repulsion_radius - d))
     return push
 
 
-def alignment(velocity: Vec3, neighbours: list[Neighbour]) -> Vec3:
-    """Mean velocity of the neighbours minus mine; zero when alone."""
-    if not neighbours:
-        return Vec3()
-    return Vec3.mean(n.velocity for n in neighbours) - velocity
+def friction(velocity: Vec3, neighbours: list[Neighbour], p: BoidParams) -> Vec3:
+    """For each neighbour, the part of our velocity difference beyond what the braking
+    curve allows at its distance (at least friction_slack), toward its velocity."""
+    total = Vec3()
+    for n in neighbours:
+        gap = n.velocity - velocity
+        allowed = max(
+            p.friction_slack,
+            braking_curve(
+                ellipsoidal_distance(n.offset, p.vertical_scale) - p.friction_radius,
+                p.friction_slope,
+                p.friction_braking,
+            ),
+        )
+        if gap.length() > allowed:
+            total = total + gap.unit() * (p.friction_gain * (gap.length() - allowed))
+    return total
 
 
 def cohesion(neighbours: list[Neighbour]) -> Vec3:
@@ -65,14 +109,6 @@ def cohesion(neighbours: list[Neighbour]) -> Vec3:
     return Vec3.mean(n.offset for n in neighbours)
 
 
-def goal(velocity: Vec3, to_goal: Vec3, p: BoidParams) -> Vec3:
-    """Steer toward `goal_speed` aimed at the goal; within `arrive_radius` the wanted
-    speed shrinks with the distance, so the leader stops there instead of overshooting."""
-    slow_down = min(1.0, to_goal.length() / p.arrive_radius)
-    wanted = to_goal.unit() * (p.goal_speed * slow_down)
-    return (wanted - velocity) * p.goal_weight
-
-
-def speed_limit(velocity: Vec3, p: BoidParams) -> Vec3:
-    excess = velocity.length() - p.max_speed
-    return -velocity.unit() * (p.speed_brake * excess) if excess > 0 else Vec3()
+def _wake(velocity: Vec3, p: BoidParams) -> float:
+    """0 below wake_speed, rising to 1 at twice wake_speed."""
+    return min(1.0, max(0.0, velocity.length() / p.wake_speed - 1))

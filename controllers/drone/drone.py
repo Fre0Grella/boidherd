@@ -1,15 +1,17 @@
 """Drone controller: lift off, climb to the takeoff altitude, then flock.
 
-The world gives each drone its altitude in customData, and leaders the goal
-(sector C, as x_min, y_min, x_max, y_max). Every step the drone broadcasts
-its velocity over IR and turns what it hears into a Reynolds acceleration;
-the autopilot follows it once the drone hovers. A leader also pulls toward
-the centre of C, from `goal_after` seconds after it starts hovering, so the
-flock forms first. Nothing marks a leader to the others (Couzin 2005).
+The world gives each drone its altitude and sector C in customData, and
+marks the leaders. Every step the drone broadcasts its velocity over IR and
+turns what it hears into a wanted velocity (boids.flock), which the flight
+layer follows once the drone hovers. The mission clock starts the trip:
+before `go_time` the flock forms; from then leaders head for the centre of
+C and every drone may cruise, except inside C. Followers don't know where C
+is, they only recognise it when they are in it (a ground marker; here GPS
+against C's rectangle). Nothing marks a leader to the others (Couzin 2005).
 """
 
 from boids import BoidParams, flock
-from flight import Autopilot, FlightParams, Phase
+from flight import Autopilot, FlightParams, acceleration_for
 from flight.crazyflie import Crazyflie
 from flight.radio import encode
 from flight.sensing import neighbours
@@ -20,24 +22,22 @@ drone = Crazyflie()
 altitude = float(str(drone.config["altitude"]))
 pilot = Autopilot(altitude, FlightParams(**overrides("flight")))
 rules = BoidParams(**overrides("boids"))
-goal: Vec3 | None = None
-if isinstance(area := drone.config.get("goal"), list):
-    x_min, y_min, x_max, y_max = (float(v) for v in area)
-    goal = Vec3((x_min + x_max) / 2, (y_min + y_max) / 2, altitude)
-hovering_since: float | None = None
+x_min, y_min, x_max, y_max = (float(v) for v in drone.config["sector_c"])  # type: ignore[union-attr]
+centre = Vec3((x_min + x_max) / 2, (y_min + y_max) / 2, altitude)
+leader = drone.config.get("leader") is True
 last_time = drone.time
 
 while drone.step():
     now = drone.time
     attitude = drone.attitude()
     velocity = drone.velocity()
+    position = drone.position()
     drone.broadcast(encode(drone.id, velocity))
     heard = neighbours(drone.id, drone.receptions(), attitude)
-    if hovering_since is None and pilot.phase in (Phase.HOVERING, Phase.FOLLOWING):
-        hovering_since = now
-    to_goal = None
-    if goal is not None and hovering_since is not None and now - hovering_since >= rules.goal_after:
-        to_goal = goal - drone.position()
-    command = flock(velocity, heard, rules, to_goal)
+    go = now >= rules.go_time
+    in_c = x_min <= position.x <= x_max and y_min <= position.y <= y_max
+    to_goal = centre - position if leader and go else None
+    wanted = flock(velocity, heard, rules, cruise=go and not in_c, to_goal=to_goal)
+    command = acceleration_for(wanted, velocity, pilot.p.velocity_tau, pilot.p.max_acceleration)
     drone.set_motors(pilot.step(now - last_time, attitude, command))
     last_time = now

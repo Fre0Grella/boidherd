@@ -1,9 +1,10 @@
 """Write a course and a swarm as a Webots world (.wbt) file.
 
 One small function per kind of node, joined by `render_world()`. The world
-is self-contained: each drone finds its takeoff altitude (and, for leaders,
-the goal) in its `customData`, and the referee finds the sectors in its
-`controllerArgs`, so no controller ever reads a map file.
+is self-contained: each drone finds its takeoff altitude, sector C (which it
+recognises, and leaders seek) and whether it leads in its `customData`, and
+the referee finds the sectors in its `controllerArgs`, so no controller ever
+reads a map file.
 """
 
 import json
@@ -244,10 +245,13 @@ def _referee(course: Course) -> str:
 
 def _drone(drone: Drone, goal: Sector, ir_range: float, controller: str, marker: bool) -> str:
     x, y = drone.xy
-    data: dict[str, object] = {"altitude": round(drone.altitude, 4)}
+    r = goal.area
+    data: dict[str, object] = {
+        "altitude": round(drone.altitude, 4),
+        "sector_c": [r.x_min, r.y_min, r.x_max, r.y_max],  # recognised, by leaders also sought
+    }
     if drone.leader:
-        r = goal.area
-        data["goal"] = [r.x_min, r.y_min, r.x_max, r.y_max]
+        data["leader"] = True
     return (
         f"DEF DRONE_{drone.id} Crazyflie {{\n"
         f"  translation {_num(x)} {_num(y)} {CRAZYFLIE_REST_Z}\n"
