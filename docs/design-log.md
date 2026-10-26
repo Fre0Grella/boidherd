@@ -1121,6 +1121,130 @@ happened at 18.2 s, while the flock was starting from rest: 8 cm between
 bodies, no contact. With one altitude, height no longer separates the
 drones. No crashes.
 
+### Step 4: obstacles, and three changes to the model
+
+The mechanics were small. Map walls are boxes like the boundary, and
+pillars are disks (nearest point: one step along the radius). Both go
+into `customData` with the boundary. Then the full `l_hall` (a forest of
+15 thin pillars, the turn, a wall with a 2 m gap) broke the model three
+times. Each break was diagnosed on point masses (the scratch simulator)
+before anything changed in `src`.
+
+**1. The forest bounced the flock back.** A 10 cm pillar got the same
+shill as a wall: a push zone of 1.5 m around it, braking from about
+2.75 m. The forest's gaps (1-2 m) all lie inside some push zone, so its
+front edge looks like a solid wall. And a shill pushes a drone away at
+1.5 × v_flock, faster than the drone cruises, so a drone meeting it
+head-on is reversed, not stopped; the cruise latch then carried it back
+at full speed. The followers ping-ponged between the forest and the back
+wall. The 2 leaders threaded the forest alone and reached C.
+
+Two things that didn't help:
+
+- Leader pull (`goal_weight`) only moved the failure. At 3 the leaders
+  split off sooner; at 0.5 or 0.25 the group stayed together but dragged
+  the leaders back with it.
+- Softer shills (`wall_speed` 1.1) let the flock through the forest, but
+  it then bounced off the wall with the gap.
+
+Bouncing is how Vásárhelyi's flocks stay inside an arena with no goal.
+For a flock that has to get somewhere it is the wrong reflex; Soria et
+al. (2019, 2021) measured the same weakness of reactive models in
+clutter.
+
+**Fix 1: the stopping limit replaces the shill.** This is the same
+braking curve, used as a limit instead of a push. After everything is
+summed, the wanted velocity's component toward each wall is cut down to
+D(distance − `stop_wall`). It only takes speed away, so nothing bounces.
+It bounds the sum, so no cruise can push a drone into a wall.
+
+Tried on point masses: the flock crossed the forest as one group in
+about 20 s, at every leader pull. Then a new failure appeared, hidden
+until then by the bouncing: **jams**. When the front of the flock
+stopped (at the gap, in a corner), the drones behind kept cruising into
+it at v_flock. Repulsion is at most v_flock, reached only at contact, so
+a cruising drone can't be held off a stopped one. They converged to
+0.00 m (point masses pass through each other). Bending the cruise
+heading along the walls made it worse: it slid drones into the corners
+where the gap wall meets the side walls.
+
+**Fix 2: the limit applies to neighbours too, relative to their
+velocity.** I may close on a neighbour only as fast as its own speed
+away from me plus D(distance − `stop_drone`). A neighbour moving ahead at
+my speed doesn't hold me back; a stopped one does.
+
+Walls win where the two limits disagree. A drone pinned between a wall
+and a neighbour closing in otherwise went through the wall (seen on
+point masses). So the walls get the last rounds of the projection.
+Each limit is a half-plane of allowed velocities, and a few rounds of
+projecting onto them in turn find a velocity inside all of them
+(`rules.stopping_limit`).
+
+Even so, 20 drones still jammed at the 2 m gap. With a 0.3 m margin per
+side that is a 1.4 m lane. **The gap is now 4 m** (agreed: the map, not
+the model). On point masses: 20/20 in C, 90% at 122 s, closest pair
+0.21 m, no contact.
+
+Fixes 1 and 2 in Webots: 17/20 in C by 86 s, no crashes, never closer
+than 0.30 m to a wall (the margin, held on the real dynamics). The three
+that never arrived exposed the third problem.
+
+**3. Private headings.** Each drone's cruise heading was a memory of its
+own velocity (the latch from step 2):
+
+- Drones 5 and 17 slid along the gap wall into its inner corner while
+  the flock went through the gap. Their heading still pointed into the
+  corner, so they hovered there forever, out of the flock's perception.
+- Drone 2, **a leader**, went up and down hall 1 alone. Its direction
+  was unit(own heading + goal_weight × direction to C). From hall 1, C
+  lies mostly behind the hall's top wall: from (31, 7.7) the goal
+  direction is about (0.25, 0.97), and the limit takes the 0.97 away.
+  Once a small overshoot had flipped the leader's velocity, its own
+  heading (−1, 0) outweighed the 0.25 left, so it flew away from C,
+  which kept its heading pointing away. A loop that feeds itself.
+
+Marco's observation from watching a run: the flock moved "like a liquid
+flowing round the boxes", and the leaders hardly pulled.
+
+Both have one cause. Couzin's result, a small informed minority steering
+a large group, relies on followers having no direction of their own
+beyond aligning with their neighbours. Our followers each carried their
+own momentum, and 18 private memories outvoted 2 leaders. And Couzin's
+informed individual mixes the goal with the social direction (its
+neighbours'), not with its own momentum. I had misread that.
+
+**Fix 3: the heading is alignment.**
+
+- A follower's heading is the mean direction of the neighbours it sees
+  moving (above `wake_speed`), its own included: Couzin's zone of
+  orientation. It keeps the last heading only when alone.
+- A leader's social direction is the same mean, without itself and
+  without memory. Alone, a leader just seeks C (sliding along walls) and
+  can't run away from it.
+
+The flock now wakes from its leaders outward: before any neighbour moves,
+a follower has no heading. The latch's job, from step 2 (keep pushing
+when slowed down by the crowd), is now done by the crowd's own
+direction.
+
+| Webots, 20 drones | groups | 90% in C | closest pair | wall | crashes |
+|---|---|---|---|---|---|
+| `l_hall` j = 2, seed 0 | 1 throughout, polarization 1.00 | 78.1 s (all by 86 s) | 0.27 m | 0.30 m | none |
+| `l_hall` j = 1, seed 0 | | 122.0 s | 0.23 m | 0.30 m | none |
+| `l_hall` j = 2, seed 1 | 2 from spawn | never (11/20) | 0.28 m | 0.30 m | none |
+| `open` j = 2, seed 0 | | 42.7 s (was 69.9) | 0.41 m | 1.01 m | none |
+
+Seed 1 fails from the spawn. The swarm takes off as two groups (2 groups
+at 6.4 s, centres 6.6 m apart), and both leaders are in one of them. The
+leaderless 9 follow late, miss the turn and cruise up and down hall 1.
+`l_hall`'s A is 11 × 6 m with altitudes 0.8-1.5 m, too sparse for 20
+drones at a 2.5 m perception radius. This is the constant-density spawn
+deferred after the first sweep; the L hall turns it from a nuisance into
+a failure.
+
+`open` is faster because the flock now wakes along the leaders'
+direction instead of each drone waiting for its own push.
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?

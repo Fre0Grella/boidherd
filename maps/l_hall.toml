@@ -14,8 +14,8 @@ C = { rect = [[32, 24], [40, 30]] }               # goal; no z = floor to ceilin
 
 [obstacles]
 walls = [
-  [[32, 16], [35, 16.2]],      # wall across hall 2...
-  [[37, 16], [40, 16.2]],      # ...with a 2 m gap in the middle
+  [[32, 16], [34, 16.2]],      # wall across hall 2...
+  [[38, 16], [40, 16.2]],      # ...with a 4 m gap in the middle (2 m jammed 20 drones)
 ]
 pillars = [
   { center = [29, 4], radius = 0.15 },

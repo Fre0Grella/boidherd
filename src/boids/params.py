@@ -27,9 +27,9 @@ class BoidParams:
     # who counts: neighbours within this (ellipsoidal) radius; the IR range (3 m) caps it anyway
     perception_radius: float = 2.5  # m
     vertical_scale: float = 2.0  # a neighbour above or below counts as this x closer (zone.py)
-    # self-propulsion: cruise at v_flock along my heading (cruise.py)
+    # self-propulsion: cruise at v_flock along the flock's mean direction (cruise.py)
     v_flock: float = 1.0  # m/s: THE speed knob, everything marked "x v_flock" follows it
-    wake_speed: float = 0.1  # m/s: a drone wakes, and a heading counts, from this speed
+    wake_speed: float = 0.1  # m/s: a velocity gives a direction from this speed
     settle_distance: float = 2.5  # m a drone keeps cruising into C after it recognises it
     # repulsion: linear, from repulsion_radius in
     repulsion_radius: float = 1.0  # m (robotsim R_0)
@@ -44,17 +44,17 @@ class BoidParams:
     friction_radius: float = 2.0  # m: closer than this only the slack is allowed
     friction_slope: float = 1.0  # 1/s x v_flock, linear part of the braking curve
     friction_braking: float = 1.6  # m/s^2 x v_flock^2, constant-deceleration part
-    # walls (Vásárhelyi's shill agents): at the nearest point of every wall a virtual drone
-    # flies away from it at wall_speed; mine may differ from its velocity only by the braking
-    # curve of my distance to the wall, the excess is corrected (gain 1, as in robotsim)
-    wall_speed: float = 1.5  # x v_flock (robotsim V_Shill); above 1 or walls lose
-    wall_radius: float = 0.0  # m: the braking curve starts this far from the wall (R_0_Shill)
-    wall_slope: float = 1.0  # 1/s x v_flock, linear part of the curve (Slope_Shill)
-    wall_braking: float = 1.6  # m/s^2 x v_flock^2, constant-deceleration part (Acc_Shill)
+    # the stopping limit (ours, rules.py): toward a wall, or a neighbour relative to its
+    # velocity, close no faster than the braking curve of the distance left minus a margin;
+    # the curve as robotsim's shill agents (Slope_Shill, Acc_Shill)
+    stop_wall: float = 0.3  # m: a drone stops this far from a wall
+    stop_drone: float = 0.3  # m: ...and from another drone (ellipsoidal distance)
+    stop_slope: float = 1.0  # 1/s x v_flock, linear part of the braking curve
+    stop_braking: float = 1.6  # m/s^2 x v_flock^2, constant-deceleration part
     # cohesion (Reynolds, ours: Vásárhelyi has none): toward the neighbours' centre
     cohesion: float = 0.4  # 1/s x v_flock: per metre to the centre
     # leaders only (Couzin's informed individuals): cruise toward the goal, mixed with
-    # their own heading with weight goal_weight, slowing down within arrive_radius
+    # the flock's heading with weight goal_weight, slowing down within arrive_radius
     goal_weight: float = 1.0
     arrive_radius: float = 3.0  # m
     # the mission clock: before go_time the flock forms (no cruise, no goal); from then

@@ -2,24 +2,33 @@
 
 Vásárhelyi et al. (2018), the model of the authors' simulator (csviragh/
 robotsim), plus Reynolds' cohesion and Couzin's informed leaders. Each term
-is a velocity; their sum is capped at `max_speed`, and the flight layer
-turns it into an acceleration (flight.acceleration_for). Each rule only
+is a velocity; their sum is capped at `max_speed`, then limited so that it
+never closes on a wall or a neighbour faster than the drone could still
+stop, and the flight layer turns it into an acceleration
+(flight.acceleration_for). Each rule only
 sees what IR tells a drone about its neighbours (where they are relative to
 it, how they move) and its own velocity; a follower never needs its
 absolute position.
 
-- self-propulsion: cruise at `v_flock` along a heading, once the mission
-  has started and while I am outside C (when and which way: cruise.py);
+- self-propulsion: cruise at `v_flock` along a heading, the flock's mean
+  direction, once the mission has started and until I settle in C (when
+  and which way: cruise.py);
 - repulsion: away from neighbours inside `repulsion_radius`, linearly;
 - friction: two neighbours may differ in velocity only by what they could
   still brake within their distance (the braking curve), the excess is
   corrected: velocity alignment that is strong up close, slack far away;
 - cohesion (Reynolds): toward the neighbours' centre;
-- walls: the same braking-curve rule against a shill agent, a virtual
-  drone at the wall's nearest point flying away from it: a drone may
-  approach a wall only as fast as it could still stop before it;
 - leaders only: cruise toward the goal instead, the direction mixed with
-  their own heading (Couzin 2005), slowing down near the goal.
+  the flock's (Couzin 2005), slowing down near the goal;
+- the stopping limit, last: toward each wall, and each neighbour relative
+  to its velocity, the wanted velocity may close only at the braking
+  curve of the distance left (minus a margin). Not a push: it only takes
+  speed away, so nothing bounces off a wall, and it bounds the sum, so
+  no cruise can push a drone into a wall or another drone. Walls win
+  where the two disagree. Ours: Vásárhelyi's shill agents push a drone
+  away, which in a forest or at a gap makes the flock bounce back, and
+  behind a stopped front a cruising drone outpushes repulsion (design
+  log, step 4).
 
 Walls are the one thing a drone knows from the map rather than hears: it
 gets them as offsets to their nearest points (obstacles.py, map + GPS).
@@ -41,6 +50,8 @@ from util import Vec3
 from .params import BoidParams
 from .zone import ellipsoidal_distance, within
 
+LIMIT_ROUNDS = 3  # enough for the few limits that bind at once (a corner, a crowd)
+
 
 def flock(
     velocity: Vec3,
@@ -52,17 +63,17 @@ def flock(
 ) -> Vec3:
     """The wanted velocity (m/s, world frame). `heading`: cruise along it (a unit vector,
     see cruise.py). `to_goal`, for a leader on its way: from the drone to its goal, metres
-    (then it cruises toward it instead). `to_walls`: from the drone to the nearest point of
-    each wall, metres."""
+    (then it cruises toward it, mixed with `heading`, instead). `to_walls`: from the drone
+    to the nearest point of each wall, metres."""
     seen = [n for n in neighbours if within(n.offset, p.perception_radius, p.vertical_scale)]
     total = repulsion(seen, p) + friction(velocity, seen, p)
     total = total + cohesion(seen) * (p.cohesion * p.v_flock)
-    total = total + walls(velocity, to_walls or [], p)
     if to_goal is not None:
-        total = total + seek(velocity, to_goal, p)
+        total = total + seek(heading or Vec3(), to_goal, p)
     elif heading is not None:
         total = total + heading * p.v_flock
-    return total.scaled_z(p.vertical_gain).clamped(p.max_speed * p.v_flock)
+    wanted = total.scaled_z(p.vertical_gain).clamped(p.max_speed * p.v_flock)
+    return stopping_limit(wanted, seen, to_walls or [], p)
 
 
 def braking_curve(distance: float, slope: float, deceleration: float) -> float:
@@ -77,10 +88,10 @@ def braking_curve(distance: float, slope: float, deceleration: float) -> float:
     return math.sqrt(2 * deceleration * distance - (deceleration / slope) ** 2)
 
 
-def seek(velocity: Vec3, to_goal: Vec3, p: BoidParams) -> Vec3:
-    """A leader's cruise: toward the goal mixed with its heading (weight goal_weight to 1),
-    at v_flock, slowing down within arrive_radius so it stops there."""
-    heading = velocity.unit() * _wake(velocity, p)
+def seek(heading: Vec3, to_goal: Vec3, p: BoidParams) -> Vec3:
+    """A leader's cruise: toward the goal mixed with the flock's heading (a unit vector, or
+    zero alone; goal_weight to 1), at v_flock, slowing down within arrive_radius so it stops
+    there."""
     direction = (heading + to_goal.unit() * p.goal_weight).unit()
     return direction * (p.v_flock * min(1.0, to_goal.length() / p.arrive_radius))
 
@@ -115,31 +126,35 @@ def friction(velocity: Vec3, neighbours: list[Neighbour], p: BoidParams) -> Vec3
     return total
 
 
-def walls(velocity: Vec3, to_walls: list[Vec3], p: BoidParams) -> Vec3:
-    """For each wall, the part of my velocity's difference from its shill's (wall_speed away
-    from the wall) beyond what the braking curve allows at my distance from the wall. Flat:
-    walls are full height until phase 4. A drone on a wall (offset zero) gets no push.
-    robotsim's Shill_Obstacle_LinSqrt."""
-    v = p.v_flock
-    total = Vec3()
-    for offset in to_walls:
-        flat = offset.horizontal()
-        if flat.length() == 0:
-            continue
-        gap = (flat.unit() * -(p.wall_speed * v) - velocity).horizontal()
-        allowed = braking_curve(
-            flat.length() - p.wall_radius, p.wall_slope * v, p.wall_braking * v**2
-        )
-        if gap.length() > allowed:
-            total = total + gap.unit() * (gap.length() - allowed)
-    return total
+def stopping_limit(
+    wanted: Vec3, neighbours: list[Neighbour], to_walls: list[Vec3], p: BoidParams
+) -> Vec3:
+    """`wanted`, its horizontal speed toward each neighbour (beyond the neighbour's own) and
+    each wall cut down to the braking curve of the distance left, less stop_drone or
+    stop_wall. Each limit is a half-plane of allowed velocities; a few rounds of projecting
+    onto them in turn find a velocity in all of them, and the walls get the last rounds.
+    Flat: walls are full height until phase 4."""
+    drones = [
+        (n.offset.horizontal(), ellipsoidal_distance(n.offset, p.vertical_scale), n.velocity,
+         p.stop_drone)
+        for n in neighbours
+    ]  # fmt: skip
+    walls = [(w.horizontal(), w.horizontal().length(), Vec3(), p.stop_wall) for w in to_walls]
+    for limits in (drones + walls, walls):
+        for _ in range(LIMIT_ROUNDS):
+            for direction, distance, moving, margin in limits:
+                if direction.length() == 0:
+                    continue  # right above me, or I am on a wall: no way to tell which way
+                toward = direction.unit()
+                allowed = moving.dot(toward) + braking_curve(
+                    distance - margin, p.stop_slope * p.v_flock, p.stop_braking * p.v_flock**2
+                )
+                excess = wanted.dot(toward) - allowed
+                if excess > 0:
+                    wanted = wanted - toward * excess
+    return wanted
 
 
 def cohesion(neighbours: list[Neighbour]) -> Vec3:
     """From me to the neighbours' centre; zero when alone."""
     return Vec3.mean(n.offset for n in neighbours)
-
-
-def _wake(velocity: Vec3, p: BoidParams) -> float:
-    """0 below wake_speed, rising to 1 at twice wake_speed."""
-    return min(1.0, max(0.0, velocity.length() / p.wake_speed - 1))
