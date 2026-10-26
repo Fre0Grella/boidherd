@@ -29,7 +29,31 @@ What each source is used for in the project.
   linear repulsion and a pairwise viscous-friction alignment to damp them.
 - **Vásárhelyi, G. et al. (2018).** Optimized flocking of autonomous drones
   in confined environments. *Science Robotics* 3(20), eaat3536. 30 real
-  drones; flocking parameters tuned by evolutionary optimisation.
+  drones; flocking parameters tuned by evolutionary optimisation; walls
+  and obstacles as virtual GPS walls. The phase-3 model.
+- **robotsim**, the authors' simulator (MIT):
+  <https://github.com/csviragh/robotsim>. `src/algo_spp_evol.c` (the
+  model, shill agents for obstacles), `src/utilities/interactions.c`
+  (repulsion, friction), `src/utilities/math_utils.c` (braking curve
+  `VelDecayLinSqrt`), `src/utilities/arenas.c` (arena walls).
+- **Bansal, J. C., Sethi, N., Anicho, O., Nagar, A. (2022).** Drone
+  flocking optimization using
+  NSGA-II and principal component analysis.
+  <https://arxiv.org/abs/2205.00432>. Re-implements Vásárhelyi's model
+  with its equations written out.
+- **Hauert, S. et al. (2011).** Reynolds flocking in reality with
+  fixed-wing robots: communication range vs. maximum turning rate.
+  *IROS 2011*, 5015-5020. Reynolds + migration point on 10 outdoor robots;
+  rotorcraft approximated as omnidirectional.
+- **Soria, E., Schiano, F., Floreano, D. (2019).** The influence of limited
+  visual sensing on the Reynolds flocking algorithm. *IEEE IRC 2019*.
+- **Soria, E., Schiano, F., Floreano, D. (2021).** Predictive control of
+  aerial swarms in cluttered environments. *Nature Machine Intelligence*
+  3, 545-554. Potential-field swarm models don't guarantee fast, safe
+  flight in clutter; replaced by model predictive control.
+- **Schilling, F. et al. (2019).** Learning vision-based flight in drone
+  swarms by imitation. *IEEE RA-L*. A Reynolds-family flocking controller
+  as the teacher for real quadrotors.
 - **Forgoston, E., Schwartz, I. B. (2008).** Delay-induced instabilities in
   self-propelling swarms. *Physical Review E* 77, 035203.
   <https://arxiv.org/abs/0712.2950>. The delay-induced transition is a

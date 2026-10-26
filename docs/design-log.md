@@ -810,12 +810,126 @@ Consequences to keep in mind: a leaderless flock accelerates toward the
 phase 3), and in leader runs the same push competes with the leaders, so
 the n x j results include it.
 
+### First n x j sweep (short)
+
+`tools/sweep.py` runs every (n, j, seed) headless on `open` and appends a
+row per run to `logs/sweep_results.csv` (resumable). A short sweep, n 10
+and 20, j 0 1 2 4 8, 150 s (90% of the drones in C, s; "-" never):
+
+| j | n = 10, seeds 0 / 1 / 2 | n = 20, seeds 0 / 1 |
+|---|---|---|
+| 0 | - / - / - | - / - |
+| 1 | 83 / - (5 left) / 77 (1 left) | 89 / 101 |
+| 2 | 74 / - (5 left) / 74 (1 left) | 79 / 81 |
+| 4 | 71 / 73 (1 left) / 71 (1 left) | 75 / 80 |
+| 8 | 69 / 72 (1 left) / 69 (1 left) | 73 / 76 |
+
+No crashes; closest pair 0.42 m; leaderless flocks reached a wall (0.04
+m, no avoidance yet). At n = 20 one leader (5%) brings the whole flock;
+more leaders only shorten the trip, down to the leaders' own pace (~74 s:
+set off at ~16 s, 29 m at 0.5 m/s). Every n = 10 failure is the spawn:
+A is a fixed 8 x 8 m, so 10 drones start sparse, in 3 groups (seed 1) or
+2 (seed 2), and a group without a leader never hears where C is. The
+sweep mixes swarm size with start density.
+
+Left for a later test: spawn at constant density so every swarm starts
+connected, and weaker leaders (e.g. `goal_weight` 0.3) to find the j at
+which leading starts to fail (Couzin's accuracy curve).
+
+## 2026-10-26 · Phase 3: from Reynolds to Vásárhelyi
+
+Obstacle avoidance raised a question about the whole model: Reynolds'
+boids were made for animation (perfect perception, instant response), so
+is forcing them onto a robot the wrong model?
+
+**What the literature says.** Not wrong for flocking: Reynolds is the
+usual starting point for real swarms. Hauert et al. (2011) flew Reynolds
+flocking with a migration point on 10 fixed-wing robots ("Reynolds
+flocking in reality") and note that rotorcraft "can be approximated as
+omnidirectional motion": the quadrotor is the easiest robot for it.
+Virágh et al. (2014) start from Reynolds' three principles for any robot
+that moves "in arbitrary directions independently of its orientation...
+(including zero velocity hovering)" and show they work "only if some
+specific extra aspects of the robots are taken into account" (inertia,
+delay, noise, range): our phase-1 experience. Olfati-Saber (2006) shows
+the plain rules "generically" fragment without a navigational term: our
+n = 10 sweep. Where the doubt holds is obstacles: Soria et al. (2021)
+argue that potential-field swarm models (Reynolds' family) do not
+guarantee fast, safe flight in clutter. And no flocking model solves
+seeing obstacles: Reynolds assumed perfect sight, Vásárhelyi et al.
+(2018) flew 30 drones among obstacles that were virtual GPS walls.
+
+**Sensing obstacles, turned down.** The Crazyflie's Multi-ranger (4
+single rays, 2 m; the real VL53L1x sees a ~27 deg cone) leaves blind
+spots, needs the drone to yaw to face its velocity for a look-ahead, and
+sees flockmates as obstacles. Removing them with the IR neighbours (two
+sensors cancelling each other) is not robust. A map built in flight
+(occupancy grid from rangers and GPS: walls stay, neighbours move on) is
+the realistic route and a project of its own: future work.
+
+**Decision.**
+
+- **Model: Vásárhelyi et al. (2018), plus Reynolds' cohesion and the
+  leaders' goal term.** A model designed for real drones, still in
+  Reynolds' family (repulsion, alignment, attraction), so Couzin's
+  question stands. It has no cohesion (its small arena keeps the flock
+  together); our open room needs it and Couzin's leaders pull through it,
+  so Reynolds' averaged cohesion stays.
+- **Obstacles: map + GPS.** Every drone gets the course geometry in its
+  `customData` (controllers still never read map files) and finds the
+  nearest point of each obstacle and of the arena boundary with shapely.
+  Neighbours come only from IR, obstacles only from the map: no sensor
+  corrects another. An obstacle missing from the map is invisible; the
+  setting is a known environment with unknown neighbours.
+- **Self-propulsion on, off inside C.** Followers do not know where C is
+  but recognise it when inside (a ground marker, simulated with GPS
+  against C's rectangle): goal recognition, not goal knowledge, so they
+  stay uninformed in Couzin's sense. A drone in C drops its cruise term;
+  alignment slows the others to it. A leaderless flock now wanders and
+  may reach C by chance: j = 0 becomes a random-search baseline.
+- **Locomotion: velocity in front of the cascade** (option C above):
+  a = (v_d - v) / tau, capped at a_max. tau and a_max describe the robot.
+
+**The model** (from the authors' simulator, csviragh/robotsim,
+`algo_spp_evol.c`; d_ij from i to j, d = |d_ij|). The result is a wanted
+velocity v_d, capped at v_max:
+
+    self-propulsion  v_flock * unit(v_i), or 0 inside C
+    repulsion        sum_{d<r0} p_rep (r0 - d) (-unit(d_ij)), capped
+    friction         sum_j c_frict (|v_ij| - D_j) unit(v_ij)  if |v_ij| > D_j
+                     v_ij = v_j - v_i, D_j = max(v_frict, D(d - r0_frict))
+    walls/obstacles  the same against a shill per obstacle: at the
+                     obstacle's nearest point, flying away from it at
+                     v_shill; allowed difference D(d - r0_shill)
+    cohesion         Reynolds: p_coh * mean_j d_ij (ours)
+    goal (leaders)   Reynolds' seek + arrive toward C (ours)
+
+D(x) is a braking curve: the largest velocity difference from which the
+drone can still stop within x at deceleration a: 0 for x <= 0, p x near
+the wall, sqrt(2 a x - a^2/p^2) farther out (v^2 = 2 a x). A drone
+brakes early and smoothly instead of being shoved at the last moment,
+and flying alongside a wall is undisturbed: what neither steer-to-avoid
+(acts only ahead) nor a force field (too weak far, too stiff near) gives.
+
+**To watch.** Their arena code handles squares and circles only (concave
+polygons left as a TODO); the nearest-point shill should work in our
+L-hall's inner corner, to check first. Their parameters were evolved for
+4-8 m/s and ~10 m spacing; ours (0.5 m/s, ~1 m) are to be rescaled and
+tuned, first on point masses, then in Webots. The phase-2 sweep is redone
+with the new model, a Reynolds-vs-Vásárhelyi comparison for the report.
+
+**Order of work.** 1. Velocity layer in the flight code, with a flight
+test. 2. The model as pure rules with tests, against open space (no
+obstacles): the flock and the leaders as in phase 2. 3. Course geometry
+in `customData`, shills for the arena walls. 4. Obstacles: pillars, then
+the wall with a gap. 5. Sweep again.
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?
   Default: not; marked leaders could be a variant.
-- Do drones yaw to face their velocity (needed for steer-to-avoid with the
-  front sensor)? Deferred to phase 3; yaw is held constant until then.
+- Do drones yaw to face their velocity? Not needed since obstacles come
+  from the map (phase 3); yaw stays constant.
 - `DRONE_RADIUS = 0.1` makes the reachability check permissive: a 0.2 m
   passage lets one drone through, not a flock. Raise it?
 - IR range: 3 m is a placeholder, to tune in phase 1 against the flock's
