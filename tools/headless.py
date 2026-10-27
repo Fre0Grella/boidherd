@@ -12,7 +12,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from util.overrides import VARIABLE
+from util.overrides import VARIABLE, Value
 
 WEBOTS = Path(os.environ.get("WEBOTS_HOME", r"C:\Program Files\Webots"))
 WEBOTS_EXE = WEBOTS / "msys64" / "mingw64" / "bin" / "webots.exe"
@@ -26,7 +26,7 @@ def run_until(
     world: Path,
     done: Callable[[], bool],
     timeout: float,
-    params: dict[str, dict[str, float]] | None = None,
+    params: dict[str, dict[str, Value]] | None = None,
     port: int = 1297,
 ) -> float:
     """Run `world` (fast, no rendering) until `done()` is true; return the wall-clock seconds.

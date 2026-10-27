@@ -1,6 +1,7 @@
-"""Flocking rules (Vásárhelyi + Reynolds cohesion + Couzin leaders): pure maths. No Webots."""
+"""Flocking models (hybrid, Couzin) and what they share: pure maths. No Webots."""
 
 from .cruise import Cruise
+from .models import Model, make_model
 from .obstacles import Box, Disk, to_walls
 from .params import BoidParams
 from .rules import flock
@@ -11,8 +12,10 @@ __all__ = [
     "Box",
     "Cruise",
     "Disk",
+    "Model",
     "ellipsoidal_distance",
     "flock",
+    "make_model",
     "to_walls",
     "within",
 ]

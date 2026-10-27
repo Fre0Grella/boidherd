@@ -16,15 +16,14 @@ with the way to the goal. Its own momentum would let a leader run away
 from a goal it can't reach straight (the L hall: C is behind a wall from
 hall 1, design log, step 4).
 
-A drone stops cruising once it has cruised `settle_distance` into C
-(timed: that distance at v_flock), not at once: a flock arrives behind its
-leaders, and drones stopping right at the edge would pile up there, the
-tail left outside (design log, step 2).
+When a drone may cruise at all (the mission clock, settling in C) is
+mission.py's.
 """
 
 from flight.sensing import Neighbour
 from util import Vec3
 
+from .mission import Mission
 from .params import BoidParams
 from .zone import within
 
@@ -34,20 +33,14 @@ class Cruise:
         self.p = p
         self.leader = leader
         self.heading: Vec3 | None = None  # None: asleep
-        self._entered: float | None = None  # when I last entered C
+        self.mission = Mission(p)
 
     def update(
         self, velocity: Vec3, neighbours: list[Neighbour], now: float, go: bool, in_c: bool
     ) -> Vec3 | None:
         """The heading to cruise along this step (unit, horizontal), or None. `go`: the
         mission has started; `in_c`: I recognise C under me."""
-        if in_c and self._entered is None:
-            self._entered = now
-        elif not in_c:
-            self._entered = None
-        settle_time = self.p.settle_distance / self.p.v_flock
-        settled = self._entered is not None and now - self._entered >= settle_time
-        if not go or settled:
+        if not self.mission.active(now, go, in_c):
             self.heading = None
             return None
         p = self.p

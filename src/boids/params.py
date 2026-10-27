@@ -24,6 +24,9 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class BoidParams:
+    # which flocking model decides (models.py): "hybrid" (Vásárhelyi + cohesion + Couzin
+    # leaders, phase 3) or "couzin" (Couzin et al. 2005); the rest is shared
+    model: str = "hybrid"
     # who counts: neighbours within this (ellipsoidal) radius; the IR range (3 m) caps it anyway
     perception_radius: float = 2.5  # m
     vertical_scale: float = 2.0  # a neighbour above or below counts as this x closer (zone.py)
@@ -59,6 +62,10 @@ class BoidParams:
     # the flock's heading with weight goal_weight, slowing down within arrive_radius
     goal_weight: float = 1.0
     arrive_radius: float = 3.0  # m
+    # couzin only (couzin.py): a neighbour inside couzin_repulsion is all a drone avoids;
+    # leaders add couzin_weight x the goal's direction to the social one (Couzin's omega)
+    couzin_repulsion: float = 0.6  # m (Couzin's alpha), above stop_drone
+    couzin_weight: float = 0.5
     # the mission clock: before go_time the flock forms (no cruise, no goal); from then
     # leaders head for the goal and everyone may cruise (design log, the start sequence)
     go_time: float = 16.0  # s of simulated time (all hover by ~6 s)

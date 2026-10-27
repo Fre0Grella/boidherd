@@ -70,8 +70,9 @@ def main() -> int:
     except RunError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
-    print(f"{args.n} drones ({args.j} leaders) on '{args.map}' at {args.time_step} ms, "
-          f"{args.duration:.0f} s simulated in {wall:.0f} s")  # fmt: skip
+    model = BoidParams(**params.get("boids", {})).model
+    print(f"{args.n} drones ({args.j} leaders), {model} model, on '{args.map}' at "
+          f"{args.time_step} ms, {args.duration:.0f} s simulated in {wall:.0f} s")  # fmt: skip
     targets = {d.id: d.altitude for d in result.swarm}
     link = BoidParams(**params.get("boids", {})).perception_radius
     goal = result.course.sector_c.area

@@ -3,11 +3,13 @@
     uv run tools/sweep.py                       # n 10 20 40, j 0 1 2 4 8, seeds 0 1 2
     uv run tools/sweep.py -n 20 -j 0 2 --seeds 0 --duration 90
     uv run tools/sweep.py --map l_hall --budget 3300
+    uv run tools/sweep.py --map l_hall --set boids.model=couzin
 
 Runs every (n, j, seed) on a map (open by default), seed by seed so a sweep
 cut short still covers every n and j, each headless until `--duration`
 simulated seconds, until every drone is in C, or until a drone crashes, and
-appends one row per run to logs/sweep_<map>.csv as soon as it finishes.
+appends one row per run to logs/sweep_<map>_<model>.csv as soon as it
+finishes.
 Runs already in that file are skipped, so a stopped sweep picks up where it
 left off; with `--budget`, no run starts once that many wall-clock seconds
 have gone. Per run: when the flock started (all hovering), when 90% and when
@@ -60,10 +62,11 @@ def main() -> int:
     parser.add_argument("--set", nargs="*", default=[], metavar="SECTION.NAME=VALUE",
                         help="override settings, e.g. boids.goal_speed=0.4")  # fmt: skip
     args = parser.parse_args()
-    results = ROOT / "logs" / f"sweep_{args.map}.csv"
-    began = time.monotonic()
     params = parse(args.set)
-    link = BoidParams(**params.get("boids", {})).perception_radius
+    boids = BoidParams(**params.get("boids", {}))
+    results = ROOT / "logs" / f"sweep_{args.map}_{boids.model}.csv"
+    began = time.monotonic()
+    link = boids.perception_radius
 
     done = _done_runs(results)
     runs = [(n, j, seed) for seed, n, j in itertools.product(args.seeds, args.n, args.j)

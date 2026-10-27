@@ -3,7 +3,8 @@ import math
 import pytest
 
 from boids import BoidParams, Cruise, flock, to_walls
-from boids.rules import braking_curve, cohesion, friction, repulsion, seek, stopping_limit
+from boids.limit import braking_curve, stopping_limit
+from boids.rules import cohesion, friction, repulsion, seek
 from flight.sensing import Neighbour
 from util import ZERO, Vec3
 
