@@ -1668,6 +1668,47 @@ zero there was no "best 3" to confirm, so Reynolds got 13 runs, not 15.
 Both winners are now the defaults (`boids/params.py`, with the untuned
 values in the comments). The hybrid's are unchanged.
 
+### The wall was a brake: Couzin retuned with the plan on too
+
+The first evaluation runs (seed 0, 20 drones, 2 leaders) had Couzin
+fail *with* the plan: 2/20 on `dead_end` and 3/20 on `l_turn`, where two
+drones collided (0.03 m). Without the plan it got 18/20 and 20/20.
+
+Replaying `l_turn` (the run is deterministic) showed why. At go time the
+two leaders were already 2.4-3.3 m from the flock's centre, at the edge
+of perception. They flew the path at a full 1.00 m/s while the flock
+averaged 0.85-0.9: with a hard 0.4 m repulsion zone the followers
+zig-zag. By 24 s the leaders were 6-7 m ahead, out of sight for good.
+The leaderless flock kept its heading to the end of hall 1 and stayed
+there; the collision was inside it.
+
+Aiming straight at C, the leaders press into the hall's wall, and the
+stopping limit slows them to the flock's pace. That wall was a brake,
+and ω was tuned with it. The plan keeps the leaders off the walls, and
+the brake goes. The hybrid's and Reynolds' leaders also feel the flock
+(cohesion); a Couzin leader only feels the neighbours it still sees.
+
+**The mistake was the protocol's, not the model's:** ω was tuned with
+the plan off only, so it fits leaders the walls hold back. Marco's call:
+retune ω so that one value works with the plan off and on. The other
+options were to report Couzin as it stands, or to give its leaders a
+rule to wait for the flock, which is no longer Couzin's model.
+
+The retune, fixed before running:
+
+- ω = 0.25, 0.5, 0.75, 1 (the current value as the reference); α stays
+  0.4 m, the only value that worked.
+- Each ω runs with the plan off and on (`tune.py --across
+  plan.planning=0,1`), on `l_hall` with seed 100. The best 2 run again
+  on seed 101. 12 runs.
+- The score is the fraction of drones in C, averaged over plan off and
+  on, then time to 90%.
+- Hypothesis: a weaker pull keeps the leaders inside the flock with the
+  plan on, at some cost in arrival with the plan off.
+
+The Couzin seed-0 evaluation runs were made with the old ω, so they're
+set aside (`logs/stale/`) and run again with the new one.
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?

@@ -2,9 +2,12 @@
 
     uv run tools/tune.py --model couzin --grid couzin_weight=0.5,1,2,3 couzin_repulsion=0.4,0.6,0.8
     uv run tools/tune.py --model reynolds --grid reynolds_goal=1,2,4 --budget 3300
+    uv run tools/tune.py --model couzin --grid couzin_weight=0.5,1 --across plan.planning=0,1
 
 Each setting on the grid is a boids setting (or section.name); any other flag
-(--plan 1, --velocity 0.5) holds for every run. Every combination runs on
+(--plan 1, --velocity 0.5) holds for every run. `--across`: settings every
+combination runs with each value of, scored over all of them, so the winner
+has to work both ways (the plan off and on). Every combination runs on
 each seed (100 and 101 by default, never used by the sweeps), seed by seed so
 a tuning cut short has tried every combination once. One row per run goes to
 logs/tune_<map>_<model>.csv: the combination, then the sweep's columns.
@@ -35,6 +38,8 @@ def main() -> int:
     parser.add_argument("--map", default="l_hall")
     parser.add_argument("--grid", nargs="+", required=True, metavar="NAME=A,B,C",
                         help="settings to try, e.g. couzin_weight=0.5,1,2")  # fmt: skip
+    parser.add_argument("--across", nargs="*", default=[], metavar="NAME=A,B",
+                        help="scored across these, e.g. plan.planning=0,1")  # fmt: skip
     parser.add_argument("-n", type=int, default=20)
     parser.add_argument("-j", type=int, default=2)
     parser.add_argument("--seeds", type=int, nargs="+", default=[100, 101])
@@ -46,16 +51,20 @@ def main() -> int:
     args = parser.parse_args()
     fixed = settings(args)
     model = BoidParams(**fixed.get("boids", {})).model
-    results = ROOT / "logs" / f"tune_{args.map}_{model}.csv"
     combinations = grid(args.grid)
     keys = list(combinations[0])
-    columns = keys + COLUMNS
+    variants = grid(args.across) if args.across else [{}]
+    across = list(variants[0])
+    scored = "".join(f"_{key.partition('.')[2]}" for key in across)  # its own columns, own file
+    results = ROOT / "logs" / f"tune_{args.map}_{model}{scored}.csv"
+    columns = keys + across + COLUMNS
     began = time.monotonic()
 
-    done = _done(results, keys)
-    runs = [(seed, c) for seed, c in itertools.product(args.seeds, combinations)
-            if (seed, *c.values()) not in done]  # fmt: skip
-    print(f"{model}: {len(combinations)} combinations x {len(args.seeds)} seeds, "
+    done = _done(results, keys + across)
+    runs = [(seed, {**c, **v})
+            for seed, c, v in itertools.product(args.seeds, combinations, variants)
+            if (seed, *c.values(), *v.values()) not in done]  # fmt: skip
+    print(f"{model}: {len(combinations)} combinations x {len(variants)} x {len(args.seeds)} seeds, "
           f"{len(runs)} runs to go ({len(done)} done in {results.name})", flush=True)  # fmt: skip
     for k, (seed, c) in enumerate(runs, 1):
         if args.budget is not None and time.monotonic() - began > args.budget:
@@ -108,7 +117,7 @@ def rank(results: Path, keys: list[str]) -> None:
         arrived = [float(r["arrived"]) if r["arrived"] else 1e9 for r in rows]
         return (-in_c, statistics.median(arrived))
 
-    print("\nbest first (in C at the end, 90% in C, closest pair, per seed):")
+    print("\nbest first (in C at the end, 90% in C, closest pair, per run):")
     for combo, rows in sorted(runs.items(), key=lambda item: score(item[1])):
         label = " ".join(f"{k.partition('.')[2]}={v}" for k, v in zip(keys, combo, strict=True))
         per_seed = " | ".join(
