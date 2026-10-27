@@ -1295,6 +1295,52 @@ hall 2, one above the gap wall's right half. A follower that loses the
 flock can't find C, by design. Three seeds per setting can't separate
 the wake settings. That's what the sweep (step 5) is for.
 
+### Step 5: the n x j sweep on `l_hall`
+
+The setup:
+
+- n = 10, 20, 30; j = 1, 2, 4; seeds 0-2; up to 200 s simulated.
+- 1 m/s, `wake_speed` 0.3 × v_flock, the constant-density spawn, one
+  altitude (1.5 m).
+- 25 of the 27 runs fit the hour. n = 30, seed 2, j = 2 and 4 are
+  missing.
+- No j = 0 runs: a leaderless flock can't find C on the L hall.
+
+Time until 90% of the drones are in C, s (seeds 0 / 1 / 2). Where a run
+didn't get everyone in, the number left outside is in brackets:
+
+| j | n = 10 | n = 20 | n = 30 |
+|---|---|---|---|
+| 1 | 74 / never (2) / 76 | 76 (1) / 76 (2) / 75 (2) | 78 (1) / 115 / 95 (2) |
+| 2 | 69 / 71 / 69 | 116 / 119 / 117 | 81 / never (15) / - |
+| 4 | 67 / 67 / 66 | 72 / 72 / 72 | 112 / 84 / - |
+
+Every drone got into C in 3 of 9 runs with j = 1, in 7 of 8 with j = 2,
+and in 8 of 8 with j = 4. No crashes.
+
+- **One leader brings the flock, but not all of it.** With j = 1, 1-2
+  drones end in a group with no leader in 6 of 9 runs. They're the tail
+  losing the flock at the gap or the corner, as in the step-4 seed 0.
+  With one leader the flock's front is the only informed part, so the
+  rear has nothing to correct it.
+- **More leaders, sooner and safer, but not monotonic.** j = 4 brought
+  everyone in, every time, in 66-72 s at n ≤ 20: about the leaders' own
+  pace. That's 16 s at the start, then about 50 s for roughly 50 m
+  at 1 m/s.
+- **n = 20, j = 2 is slow in all three seeds** (116-119 s against 72 s
+  for j = 4). That's too regular for chance; something holds the flock
+  for ~45 s, worth a look.
+- **n = 30, j = 2, seed 1 split in half** (15 drones in 3 leaderless
+  groups).
+- **Spacing is too tight.** The closest pair reached 0.10-0.12 m
+  (centres) in 6 runs, all at n ≥ 20. With a 0.1 m drone that is
+  touching distance, though nothing crashed. So `stop_drone` (0.3 m)
+  isn't held on the real dynamics in a crowd: the limit is one-sided
+  per drone, and the flight layer lags it by ~tau.
+- **Walls:** 0.30 m (the margin) in every run but two (0.24 m, n = 20,
+  j = 2). This time it was measured to pillars and map walls too
+  (`flock_test.solid`).
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?
