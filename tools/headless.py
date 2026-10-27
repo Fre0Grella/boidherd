@@ -15,10 +15,12 @@ from pathlib import Path
 
 from boids import BoidParams
 from flight import FlightParams
+from planner import PlanParams
 from util.overrides import VARIABLE, Value, add_flags, from_flags
 
-SETTINGS = {"boids": BoidParams, "flight": FlightParams}
-ALIASES = {"velocity": "boids.v_flock"}  # the cruise speed, by the name one reaches for
+SETTINGS = {"boids": BoidParams, "flight": FlightParams, "plan": PlanParams}
+# by the name one reaches for: the cruise speed, the leaders' planning switch
+ALIASES = {"velocity": "boids.v_flock", "plan": "plan.planning"}
 
 WEBOTS = Path(os.environ.get("WEBOTS_HOME", r"C:\Program Files\Webots"))
 WEBOTS_EXE = WEBOTS / "msys64" / "mingw64" / "bin" / "webots.exe"
@@ -58,7 +60,7 @@ def run_until(
 
 
 def add_settings(parser: argparse.ArgumentParser) -> None:
-    """Every boids and flight setting as a flag (--model couzin --velocity 0.5), and --set
+    """Every boids, flight and plan setting as a flag (--model couzin --velocity 0.5), and --set
     section.name=value."""
     parser.add_argument("--set", nargs="*", default=[], metavar="SECTION.NAME=VALUE",
                         help="override settings, e.g. boids.cohesion=0.5")  # fmt: skip
@@ -69,6 +71,7 @@ def add_settings(parser: argparse.ArgumentParser) -> None:
         "Any setting above can be changed for this run, by its name:\n"
         "  --model couzin                 the flocking model: hybrid, couzin, reynolds\n"
         "  --velocity 0.5                 the cruise speed (v_flock), m/s\n"
+        "  --plan 1                       leaders plan a path round the walls\n"
         "  --cohesion 0.5 --kp-angle 8    any boids or flight setting\n"
         "  --set boids.cohesion=0.5       the same, section.name=value"
     )

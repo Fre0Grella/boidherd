@@ -60,10 +60,13 @@ def test_every_drone_knows_c_and_the_obstacles_and_three_lead(world: str, course
     c = course.sector_c.area
     assert all(d["sector_c"] == [c.x_min, c.y_min, c.x_max, c.y_max] for d in data)
     assert sum(d.get("leader") is True for d in data) == 3
-    solid = (*course.boundary, *course.walls)
-    walls = [[w.rect.x_min, w.rect.y_min, w.rect.x_max, w.rect.y_max] for w in solid]
+
+    def boxes(walls) -> list[list[float]]:
+        return [[w.rect.x_min, w.rect.y_min, w.rect.x_max, w.rect.y_max] for w in walls]
+
     pillars = [pytest.approx([*p.center, p.radius], abs=1e-4) for p in course.pillars]
-    assert all(d["walls"] == walls and d["pillars"] == pillars for d in data)
+    assert all(d["boundary"] == boxes(course.boundary) for d in data)
+    assert all(d["walls"] == boxes(course.walls) and d["pillars"] == pillars for d in data)
     z_min, z_max = course.sector_a.z
     assert all(z_min <= float(str(d["altitude"])) <= z_max for d in data)
 

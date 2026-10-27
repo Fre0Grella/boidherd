@@ -32,6 +32,7 @@ from shapely.ops import unary_union
 from boids import BoidParams
 from maps.course import Course
 from maps.model import Rect
+from planner import PlanParams
 from worldgen.cli import generate
 from worldgen.wbt import TIME_STEP
 
@@ -71,7 +72,8 @@ def main() -> int:
         print(f"error: {e}", file=sys.stderr)
         return 1
     model = BoidParams(**params.get("boids", {})).model
-    print(f"{args.n} drones ({args.j} leaders), {model} model, on '{args.map}' at "
+    planned = "planned" if PlanParams(**params.get("plan", {})).planning else "straight"
+    print(f"{args.n} drones ({args.j} leaders, {planned}), {model} model, on '{args.map}' at "
           f"{args.time_step} ms, {args.duration:.0f} s simulated in {wall:.0f} s")  # fmt: skip
     targets = {d.id: d.altitude for d in result.swarm}
     link = BoidParams(**params.get("boids", {})).perception_radius

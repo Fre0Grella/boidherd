@@ -1,0 +1,19 @@
+version = 1
+description = "Open room with a cup between A and C, open toward A: the straight line to C runs into its dead end (phase 5)."
+
+[arena]
+ceiling = 3                  # flight ceiling
+rects = [                    # free space = union of rectangles (two opposite corners)
+  [[0, 0], [40, 20]],        # one room, 40 x 20 m, as open
+]
+
+[sectors]
+A = { rect = [[1, 6], [9, 14]], z = 1.2 }    # spawn, as open
+C = { rect = [[30, 6], [38, 14]] }           # goal, as open: straight ahead of A
+
+[obstacles]
+walls = [
+  [[21.8, 5], [22, 15]],     # the cup's bottom, across the line from A to C
+  [[15, 5], [21.8, 5.2]],    # its lower arm...
+  [[15, 14.8], [21.8, 15]],  # ...and its upper arm: the cup opens toward A
+]

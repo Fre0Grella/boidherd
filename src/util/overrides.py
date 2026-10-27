@@ -43,10 +43,24 @@ def parse(assignments: list[str]) -> dict[str, dict[str, Value]]:
 
 
 def _value(text: str) -> Value:
+    if text.lower() in SWITCH:
+        return SWITCH[text.lower()]
     try:
         return float(text)
     except ValueError:
         return text
+
+
+SWITCH = {"true": True, "on": True, "yes": True, "false": False, "off": False, "no": False}
+
+
+def _switch(text: str) -> bool:
+    """A yes/no setting from the command line: 1, true, on, yes or 0, false, off, no
+    (bool("0") would be True)."""
+    value = _value(text)
+    if value not in (0, 1):
+        raise argparse.ArgumentTypeError(f"expected 1/0, true/false, on/off; got {text!r}")
+    return bool(value)
 
 
 def add_flags(
@@ -69,7 +83,7 @@ def add_flags(
             group.add_argument(
                 *names,
                 dest=key,
-                type=type(f.default),
+                type=_switch if isinstance(f.default, bool) else type(f.default),
                 default=None,
                 metavar="X",
                 help=f"{about} (default {f.default})" if about else f"default {f.default}",

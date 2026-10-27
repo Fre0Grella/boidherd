@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class PlanParams:
+    planning: bool = False  # leaders plan a path round the walls; off: they aim straight at C
     # obstacles smaller than this across (a box's longest side, a pillar's diameter) are
     # left to the drones' own avoidance; the arena outline is always kept
     min_size: float = 1.0  # m

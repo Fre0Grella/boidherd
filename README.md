@@ -58,7 +58,8 @@ uv run tools/flock_test.py       # a leaderless swarm flocks: groups, spacing, s
 Any setting can be changed for one run by its name, e.g.
 `uv run tools/flock_test.py --model couzin --velocity 0.5 --kp-angle 8`
 (`--model`: the flocking model, `hybrid`, `couzin` or `reynolds`;
-`--velocity`: the cruise speed). `-h` lists every setting and what it does;
+`--velocity`: the cruise speed; `--plan 1`: leaders plan a path round the
+walls instead of aiming straight at C). `-h` lists every setting and what it does;
 `--set boids.cohesion=0.5` still works.
 
 ## Checks

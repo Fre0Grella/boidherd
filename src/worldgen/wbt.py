@@ -248,8 +248,10 @@ def _drone(drone: Drone, course: Course, ir_range: float, controller: str, marke
     data: dict[str, object] = {
         "altitude": round(drone.altitude, 4),
         "sector_c": _corners(course.sector_c.area),  # recognised, by leaders also sought
-        # the map, for the stopping limit: boundary and walls as boxes, pillars as disks
-        "walls": [_corners(w.rect) for w in (*course.boundary, *course.walls)],
+        # the map, for the stopping limit and the leaders' plan: the arena outline and the
+        # walls as boxes, pillars as disks
+        "boundary": [_corners(w.rect) for w in course.boundary],
+        "walls": [_corners(w.rect) for w in course.walls],
         "pillars": [[round(v, 4) for v in (*p.center, p.radius)] for p in course.pillars],
     }
     if drone.leader:
