@@ -1,4 +1,4 @@
-"""Flocking models (hybrid, Couzin) and what they share: pure maths. No Webots."""
+"""Flocking models (hybrid, Couzin, Reynolds) and what they share: pure maths. No Webots."""
 
 from .cruise import Cruise
 from .models import Model, make_model

@@ -14,6 +14,7 @@ from util import Vec3
 from .couzin import Couzin
 from .cruise import Cruise
 from .params import BoidParams
+from .reynolds import Reynolds
 from .rules import flock
 
 
@@ -57,11 +58,16 @@ class Hybrid:
         )
 
 
-MODELS: dict[str, type[Hybrid] | type[Couzin]] = {"hybrid": Hybrid, "couzin": Couzin}
+MODELS = ("hybrid", "couzin", "reynolds")
 
 
-def make_model(p: BoidParams, leader: bool) -> Model:
-    """The model `p.model` names, for one drone."""
-    if p.model not in MODELS:
-        raise ValueError(f"boids.model: unknown model {p.model!r}; one of {', '.join(MODELS)}")
-    return MODELS[p.model](p, leader)
+def make_model(p: BoidParams, leader: bool, tau: float = 0.3) -> Model:
+    """The model `p.model` names, for one drone. `tau`: the flight layer's velocity_tau,
+    which Reynolds needs to turn its acceleration into a wanted velocity."""
+    if p.model == "hybrid":
+        return Hybrid(p, leader)
+    if p.model == "couzin":
+        return Couzin(p, leader)
+    if p.model == "reynolds":
+        return Reynolds(p, leader, tau)
+    raise ValueError(f"boids.model: unknown model {p.model!r}; one of {', '.join(MODELS)}")

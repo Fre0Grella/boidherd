@@ -25,7 +25,8 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class BoidParams:
     # which flocking model decides (models.py): "hybrid" (Vásárhelyi + cohesion + Couzin
-    # leaders, phase 3) or "couzin" (Couzin et al. 2005); the rest is shared
+    # leaders, phase 3), "couzin" (Couzin et al. 2005) or "reynolds" (Reynolds 1987, phase 2);
+    # the rest is shared
     model: str = "hybrid"
     # who counts: neighbours within this (ellipsoidal) radius; the IR range (3 m) caps it anyway
     perception_radius: float = 2.5  # m
@@ -66,6 +67,12 @@ class BoidParams:
     # leaders add couzin_weight x the goal's direction to the social one (Couzin's omega)
     couzin_repulsion: float = 0.6  # m (Couzin's alpha), above stop_drone
     couzin_weight: float = 0.5
+    # reynolds only (reynolds.py): phase 2's weights, then at 0.5 m/s, in units of v_flock
+    reynolds_separation_radius: float = 1.0  # m, who is too close
+    reynolds_separation: float = 4.0  # m/s^2 x v_flock^2 at half the radius (phase 2: 1.0)
+    reynolds_alignment: float = 2.0  # 1/s x v_flock, per m/s off the neighbours' mean (1.0)
+    reynolds_cohesion: float = 1.2  # 1/s^2 x v_flock^2, per metre to their centre (0.3)
+    reynolds_goal: float = 2.0  # 1/s x v_flock, a leader's pull toward v_flock at the goal (1.0)
     # the mission clock: before go_time the flock forms (no cruise, no goal); from then
     # leaders head for the goal and everyone may cruise (design log, the start sequence)
     go_time: float = 16.0  # s of simulated time (all hover by ~6 s)
