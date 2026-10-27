@@ -34,6 +34,8 @@ from headless import RunError, add_settings, run_until, settings
 from shapely.geometry import Point
 
 from boids import BoidParams
+from planner import PlanParams
+from util.overrides import Value
 from worldgen.cli import generate
 from worldgen.wbt import TIME_STEP
 
@@ -64,9 +66,9 @@ def main() -> int:
     args = parser.parse_args()
     params = settings(args)
     boids = BoidParams(**params.get("boids", {}))
-    results = ROOT / "logs" / f"sweep_{args.map}_{boids.model}.csv"
+    planned = "_plan" if PlanParams(**params.get("plan", {})).planning else ""
+    results = ROOT / "logs" / f"sweep_{args.map}_{boids.model}{planned}.csv"
     began = time.monotonic()
-    link = boids.perception_radius
 
     done = _done_runs(results)
     runs = [(n, j, seed) for seed, n, j in itertools.product(args.seeds, args.n, args.j)
@@ -76,31 +78,50 @@ def main() -> int:
         if args.budget is not None and time.monotonic() - began > args.budget:
             print(f"budget of {args.budget:.0f} s used up, {len(runs) - k + 1} runs left")
             break
-        result = generate(
-            ROOT / "maps" / f"{args.map}.toml", ROOT / "worlds", ROOT / "controllers",
-            n=n, j=j, seed=seed, name=NAME, time_step=args.time_step,
-        )  # fmt: skip
-        _remove_log()
-        goal = result.course.sector_c.area
         try:
-            wall = run_until(
-                result.world,
-                lambda n=n, goal=goal: _over(n, goal, args.duration),
-                args.timeout,
-                params,
-            )
+            row = run(args.map, n, j, seed, params, args.duration, args.timeout, args.time_step)
         except RunError as e:
             print(f"[{k}/{len(runs)}] n {n} j {j} seed {seed}: {e}", file=sys.stderr, flush=True)
             continue
-        leaders = {d.id for d in result.swarm if d.leader}
-        targets = {d.id: d.altitude for d in result.swarm}
-        row = measure(targets, leaders, solid(result.course), goal, link)
-        row.update(n=n, j=j, seed=seed, time_step=args.time_step, wall=round(wall))
         _append(results, row)
-        print(f"[{k}/{len(runs)}] n {n} j {j} seed {seed}: " + ", ".join(
-            f"{c} {row[c]}" for c in ("simulated", "arrived", "all_in", "uninformed", "crashed")
-        ) + f" ({wall:.0f} s wall)", flush=True)  # fmt: skip
+        print(f"[{k}/{len(runs)}] n {n} j {j} seed {seed}: {summary(row)}", flush=True)
     return 0
+
+
+def run(
+    map_name: str,
+    n: int,
+    j: int,
+    seed: int,
+    params: dict[str, dict[str, Value]],
+    duration: float,
+    timeout: float,
+    time_step: int,
+) -> dict[str, object]:
+    """One run, headless, measured: a row of COLUMNS. Raises RunError if Webots fails."""
+    result = generate(
+        ROOT / "maps" / f"{map_name}.toml", ROOT / "worlds", ROOT / "controllers",
+        n=n, j=j, seed=seed, name=NAME, time_step=time_step,
+    )  # fmt: skip
+    _remove_log()
+    goal = result.course.sector_c.area
+    wall = run_until(result.world, lambda: _over(n, goal, duration), timeout, params)
+    leaders = {d.id for d in result.swarm if d.leader}
+    targets = {d.id: d.altitude for d in result.swarm}
+    link = BoidParams(**params.get("boids", {})).perception_radius
+    row = measure(targets, leaders, solid(result.course), goal, link)
+    row.update(n=n, j=j, seed=seed, time_step=time_step, wall=round(wall))
+    return row
+
+
+def summary(row: dict[str, object]) -> str:
+    return (
+        ", ".join(
+            f"{c} {row[c]}"
+            for c in ("simulated", "arrived", "all_in", "in_c", "closest", "crashed")
+        )
+        + f" ({row['wall']} s wall)"
+    )
 
 
 def measure(
@@ -191,13 +212,13 @@ def _done_runs(results: Path) -> set[tuple[int, int, int]]:
         return {(int(r["n"]), int(r["j"]), int(r["seed"])) for r in csv.DictReader(f)}
 
 
-def _append(results: Path, row: dict[str, object]) -> None:
+def _append(results: Path, row: dict[str, object], columns: list[str] = COLUMNS) -> None:
     new = not results.exists()
     with open(results, "a", newline="") as f:
-        out = csv.DictWriter(f, COLUMNS)
+        out = csv.DictWriter(f, columns)
         if new:
             out.writeheader()
-        out.writerow({c: "" if row[c] is None else row[c] for c in COLUMNS})
+        out.writerow({c: "" if row[c] is None else row[c] for c in columns})
 
 
 def _remove_log() -> None:

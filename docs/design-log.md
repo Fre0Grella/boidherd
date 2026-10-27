@@ -1547,6 +1547,92 @@ reactive against planning leaders, same n, j and seeds.
   reactive leaders should clearly fail.
 - Plan on and off, swept once the code is in.
 
+### Wired in, first runs
+
+`plan.planning` switches it (`--plan 1`), off by default so every earlier
+run stays the baseline. The world now gives the arena outline
+(`boundary`) apart from the map's `walls`: the plan needs both, the
+stopping limit gets them joined as before. A leader plans once, at go
+time, from where it is; with no passage wide enough, it aims straight at
+C as before. Yes/no flags now take 1/0, true/false or on/off:
+`bool("0")` is True, so `--plan 0` would have switched it on.
+
+The new map is `maps/dead_end.toml`: an open room with a cup between A
+and C, open toward A, so the straight line to C ends in its bottom.
+
+20 drones, 2 leaders, hybrid, seed 0:
+
+| | straight at C | planned |
+|---|---|---|
+| `dead_end` | 0/20 in C: the flock presses into the cup and stays (its centre moved 5 m in 150 s) | 90% at 118 s, 19/20 |
+| `l_hall` | 116 s (the sweep's run: the tail laps hall 2) | **76 s**, 20/20, one group |
+
+- The dead end traps reactive leaders, as expected, and planning ones get
+  round it.
+- On `l_hall` the plan also fixed the slow tail: the path rounds the
+  corner wide and crosses the gap in its middle, so the tail isn't cut
+  off by the gap's wall. One seed; the sweep will tell.
+- On `dead_end` the flock split into up to 3 groups from ~56 s, when the
+  leaders turn round the cup's arm. One drone ended outside C. One run:
+  noted, not chased yet.
+- Pairs still touch (0.10 m), plan or not: the crowd spacing problem of
+  step 5.
+
+The plan on/off sweeps were started, then stopped after 7 runs: the
+models get tuned first (next section), so the sweeps run once, on the
+tuned models.
+
+## 2026-10-27 · Tuning Couzin and Reynolds: the protocol
+
+**Why.** The three-model sweep compared a hybrid tuned over a whole phase
+on `l_hall` with two models taken as published. "The hybrid wins" then
+mostly measures the tuning. Marco proposed tuning the other two.
+
+**How, fixed before any tuning run:**
+
+- **Same budget.** Each model gets 15 runs. All 12 combinations of 2
+  settings run on seed 100, then the best 3 run again on seed 101, and
+  the winner is the best of those 3 over both seeds. (First planned as
+  12 × 2 seeds = 24 runs, cut for time after 5 runs, before any ranking.)
+  The hybrid's budget is already spent: its phase-3 settings are its
+  tuned version.
+- **Same setup.** `l_hall`, 20 drones, 2 leaders, plan off (as the
+  hybrid was tuned), 200 s, seeds 100 and 101. The sweeps use seeds
+  from 0, so tuning and evaluation never share a seed.
+- **Same score.** Mean fraction of drones in C at the end first; then
+  the median time to 90% in C. The tie-break looks at spacing only by
+  eye: a setting that wins by crowding to touching distance gets
+  flagged.
+- **The grids**, two settings each, chosen from how each model failed:
+
+| model | setting | values | why |
+|---|---|---|---|
+| couzin | `couzin_weight` (ω) | 0.5, 1, 2, 3 | with j = 1 the flock outvoted the leader |
+| couzin | `couzin_repulsion` (α) | 0.4, 0.6, 0.8 m | spacing against cohesion at the gap |
+| reynolds | `reynolds_goal` | 1, 2, 4, 8 | the leaders' pull against the corner and the flock |
+| reynolds | `reynolds_alignment` | 1, 2, 4 | how much a follower copies the leaders' velocity |
+
+- **Then evaluate on what nobody tuned on.** All three models were tuned
+  on `l_hall`, so `l_hall` results say how well each fits its tuning
+  map. The comparison that counts runs on `dead_end` and `l_turn` (and
+  possibly a new map), with the sweep seeds, plan on and off: model ×
+  plan.
+
+**Hypotheses:**
+
+1. Couzin has a best ω in the middle. Too low, the flock outvotes the
+   leaders (the j = 1 failure); too high, the leaders leave it behind
+   (Couzin et al. 2005).
+2. No Reynolds setting brings the whole flock round `l_hall` with the
+   plan off. The inner corner is a local minimum of straight-line goal
+   seeking, which weights can soften but not remove. With the plan on,
+   it should.
+3. Tuned, Couzin closes most of the gap to the hybrid on reaching C, and
+   keeps its wider spacing.
+
+`tools/tune.py` runs a grid and ranks it
+(`logs/tune_<map>_<model>.csv`).
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?
