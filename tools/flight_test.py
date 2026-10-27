@@ -16,10 +16,9 @@ import math
 import sys
 from pathlib import Path
 
-from headless import RunError, run_until
+from headless import RunError, add_settings, run_until, settings
 
 from flight import FlightParams
-from util.overrides import parse
 from worldgen.cli import generate
 from worldgen.wbt import TIME_STEP
 
@@ -37,12 +36,13 @@ VELOCITY_STEPS = [
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Fly one drone through fixed velocities.")
+    parser = argparse.ArgumentParser(
+        description="Fly one drone through fixed velocities.", allow_abbrev=False
+    )
     parser.add_argument("--time-step", type=int, default=TIME_STEP, help="ms")
     parser.add_argument("--seed", type=int, default=3, help="spawn seed (sets the yaw)")
     parser.add_argument("--timeout", type=float, default=180, help="wall-clock seconds")
-    parser.add_argument("--set", nargs="*", default=[], metavar="SECTION.NAME=VALUE",
-                        help="override settings, e.g. flight.velocity_tau=0.3")  # fmt: skip
+    add_settings(parser)
     args = parser.parse_args()
 
     result = generate(
@@ -56,12 +56,12 @@ def main() -> int:
     done = LOGS / "flight_test.done"
     done.unlink(missing_ok=True)
     try:
-        wall = run_until(result.world, done.exists, args.timeout, parse(args.set))
+        wall = run_until(result.world, done.exists, args.timeout, settings(args))
     except RunError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
     print(f"ran in {wall:.0f} s wall clock")
-    report(drone.altitude, FlightParams(**parse(args.set).get("flight", {})))
+    report(drone.altitude, FlightParams(**settings(args).get("flight", {})))
     return 0
 
 

@@ -18,9 +18,8 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-from headless import RunError, run_until
+from headless import RunError, add_settings, run_until, settings
 
-from util.overrides import parse
 from worldgen.cli import generate
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,14 +29,15 @@ HOVER_TOLERANCE = 0.05  # m
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Take off a swarm and check it.")
+    parser = argparse.ArgumentParser(
+        description="Take off a swarm and check it.", allow_abbrev=False
+    )
     parser.add_argument("--map", default="square")
     parser.add_argument("-n", type=int, default=20, help="drones (default 20)")
     parser.add_argument("-s", "--seed", type=int, default=0)
     parser.add_argument("--duration", type=float, default=25.0, help="simulated seconds")
     parser.add_argument("--timeout", type=float, default=300, help="wall-clock seconds")
-    parser.add_argument("--set", nargs="*", default=[], metavar="SECTION.NAME=VALUE",
-                        help="override settings, e.g. flight.kp_tilt=2")  # fmt: skip
+    add_settings(parser)
     args = parser.parse_args()
 
     result = generate(
@@ -47,7 +47,7 @@ def main() -> int:
     LOG.unlink(missing_ok=True)
     try:
         wall = run_until(result.world, lambda: _last_time() >= args.duration, args.timeout,
-                        parse(args.set))  # fmt: skip
+                        settings(args))  # fmt: skip
     except RunError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

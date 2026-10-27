@@ -23,7 +23,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-from headless import RunError, run_until
+from headless import RunError, add_settings, run_until, settings
 from shapely import box
 from shapely.geometry import Point
 from shapely.geometry.base import BaseGeometry
@@ -32,7 +32,6 @@ from shapely.ops import unary_union
 from boids import BoidParams
 from maps.course import Course
 from maps.model import Rect
-from util.overrides import parse
 from worldgen.cli import generate
 from worldgen.wbt import TIME_STEP
 
@@ -47,7 +46,9 @@ State = tuple[float, float, float, float, float, float]  # x, y, z, vx, vy, vz
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Let a swarm flock and measure it.")
+    parser = argparse.ArgumentParser(
+        description="Let a swarm flock and measure it.", allow_abbrev=False
+    )
     parser.add_argument("--map", default="open")
     parser.add_argument("-n", type=int, default=20, help="drones (default 20)")
     parser.add_argument("-j", type=int, default=0, help="leaders (default 0)")
@@ -55,10 +56,9 @@ def main() -> int:
     parser.add_argument("--duration", type=float, default=60.0, help="simulated seconds")
     parser.add_argument("--timeout", type=float, default=600, help="wall-clock seconds")
     parser.add_argument("--time-step", type=int, default=TIME_STEP, help="ms")
-    parser.add_argument("--set", nargs="*", default=[], metavar="SECTION.NAME=VALUE",
-                        help="override settings, e.g. boids.cohesion=0.5")  # fmt: skip
+    add_settings(parser)
     args = parser.parse_args()
-    params = parse(args.set)
+    params = settings(args)
 
     result = generate(
         ROOT / "maps" / f"{args.map}.toml", ROOT / "worlds", ROOT / "controllers",

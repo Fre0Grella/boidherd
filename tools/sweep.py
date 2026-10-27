@@ -30,11 +30,10 @@ from collections import defaultdict
 from pathlib import Path
 
 from flock_test import ARRIVED, HOVER_TOLERANCE, State, _groups, _in, _polarization, solid
-from headless import RunError, run_until
+from headless import RunError, add_settings, run_until, settings
 from shapely.geometry import Point
 
 from boids import BoidParams
-from util.overrides import parse
 from worldgen.cli import generate
 from worldgen.wbt import TIME_STEP
 
@@ -50,7 +49,9 @@ COLUMNS = [
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Sweep drones x leaders x seeds.")
+    parser = argparse.ArgumentParser(
+        description="Sweep drones x leaders x seeds.", allow_abbrev=False
+    )
     parser.add_argument("--map", default="open")
     parser.add_argument("-n", type=int, nargs="+", default=[10, 20, 40])
     parser.add_argument("-j", type=int, nargs="+", default=[0, 1, 2, 4, 8])
@@ -59,10 +60,9 @@ def main() -> int:
     parser.add_argument("--timeout", type=float, default=1800, help="wall-clock seconds per run")
     parser.add_argument("--time-step", type=int, default=TIME_STEP, help="ms")
     parser.add_argument("--budget", type=float, help="wall-clock seconds; no run starts after")
-    parser.add_argument("--set", nargs="*", default=[], metavar="SECTION.NAME=VALUE",
-                        help="override settings, e.g. boids.goal_speed=0.4")  # fmt: skip
+    add_settings(parser)
     args = parser.parse_args()
-    params = parse(args.set)
+    params = settings(args)
     boids = BoidParams(**params.get("boids", {}))
     results = ROOT / "logs" / f"sweep_{args.map}_{boids.model}.csv"
     began = time.monotonic()
