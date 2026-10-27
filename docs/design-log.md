@@ -1341,6 +1341,212 @@ and in 8 of 8 with j = 4. No crashes.
   j = 2). This time it was measured to pillars and map walls too
   (`flock_test.solid`).
 
+## 2026-10-27 · Comparing models: Reynolds, Couzin, hybrid
+
+**Why.** The slow n = 20, j = 2 runs turned out to be a tail of 5 drones
+cut off at the gap. The tail took a fixed lap around the bottom of hall 2
+before finding the gap again (about 40 s; 90% in C waits for it). The
+cause: a follower copies its neighbours' direction, not their path. "Up
+and to the left" is right for drones already through the gap, but slides
+those still below the wall away from it. Cohesion, an additive push, lost
+to the cruise.
+
+Looking at what Couzin's model really says, Marco asked whether to go
+fully Couzin, then whether to compare models outright. The comparison is
+the report's question in numbers: which flocking model suits a real
+drone?
+
+**A fair comparison: swap only the social rule.** `boids.model` picks
+one; everything else is shared and identical:
+
+- the mission clock and settling in C (`boids/mission.py`);
+- the stopping limit (`boids/limit.py`);
+- the flight layer, perception (2.5 m), v_flock, the spawn;
+- which drones lead and where C is.
+
+| model | what decides | leaders |
+|---|---|---|
+| `reynolds` (phase 2) | separation + alignment + cohesion, an acceleration a; asks for v + a·τ, which the velocity layer turns back into exactly a | seek v_flock at the goal, then arrive |
+| `couzin` (Couzin et al. 2005) | a direction kept as state: repulsion first and alone (< 0.6 m); else Σ unit(offset) + Σ unit(v_j) + own direction, equal weights; flown at v_flock | + 0.5 × the goal's direction (Couzin's ω) |
+| `hybrid` (phase 3) | Vásárhelyi friction + repulsion + cohesion + a cruise along the neighbours' mean direction | Couzin-style mix, goal weight 1 |
+
+What was tuned:
+
+- `hybrid`: tuned on the L hall over phase 3.
+- `couzin`: Couzin's structure as written. α = 0.6 m, ρ = 2.5 m (our
+  perception), ω = 0.5. Nothing tuned.
+- `reynolds`: phase 2's weights, tuned in the open room, rescaled from
+  0.5 m/s to units of v_flock.
+
+Two deliberate departures from the papers:
+
+- A Couzin follower has no direction until a neighbour moves. His agents
+  start with random directions, which would scatter the swarm at the
+  start.
+- Couzin's turning-rate limit and noise are left to the real drone (τ,
+  sensors).
+
+**First runs** (20 drones, 2 leaders, Webots):
+
+| | `l_turn` (no obstacles) | `l_hall` seed 0 |
+|---|---|---|
+| hybrid | 90% at 71.7 s, polarization 1.00 | 116.4 s, 5-drone tail lapped hall 2, closest 0.11 m |
+| couzin | 122.4 s, one group, polarization 0.8-0.9 | **124.7 s, all 20 together, closest 0.28 m** |
+| reynolds | never in 150 s | never in 200 s (0/20), closest 0.26 m |
+
+- **Couzin is slower but more cohesive and safer.** The flock averages
+  about 0.7 m/s against the hybrid's 1.0 and is less aligned. But it lost
+  no tail at the gap, and its closest pair stayed at 0.28 m, the stopping
+  margin, against the hybrid's 0.11.
+- **Reynolds' leaders get stuck at the inner corner.** Seen from hall 1,
+  C lies mostly behind the hall's top wall. The straight-line seek (about
+  (0.23, 0.97) from the corner) slides a leader along that wall at only
+  0.2 m/s. At (31.4, 7.7) the box of hall 2's wall blocks even that, so
+  the leaders sat there from about 70 s to 110 s: the classic local
+  minimum of goal seeking. The hybrid and Couzin get past it because the
+  flock's own momentum (the cruise, or the direction memory) carries the
+  leaders round. Reynolds has none: nothing drives a drone but its
+  neighbours and the goal.
+
+### The `l_hall` sweep, three models
+
+The same setup as phase 3's step 5: n = 10, 20, 30; j = 1, 2, 4; seeds
+0-2; 200 s; one hour per model (`logs/sweep_l_hall_{model}.csv`). The
+hybrid's runs are step 5's own. The budget left out n = 30, seed 2 for
+j = 2 and 4 (hybrid), j = 4 (Couzin), and j = 2 and 4 (Reynolds).
+
+Drones in C at the end (seeds 0 / 1 / 2):
+
+| model | j | n = 10 | n = 20 | n = 30 |
+|---|---|---|---|---|
+| hybrid | 1 | 10 / 8 / 10 | 19 / 18 / 18 | 29 / 30 / 28 |
+| hybrid | 2 | 10 / 10 / 10 | 20 / 20 / 20 | 30 / 15 / - |
+| hybrid | 4 | 10 / 10 / 10 | 20 / 20 / 20 | 30 / 30 / - |
+| couzin | 1 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 |
+| couzin | 2 | 9 / 10 / 0 | 20 / 0 / 0 | 0 / 24 / 0 |
+| couzin | 4 | 10 / 10 / 10 | 19 / 19 / 19 | 23 / 17 / - |
+| reynolds | 1 | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 |
+| reynolds | 2 | 0 / 0 / 9 | 0 / 0 / 0 | 0 / 0 / - |
+| reynolds | 4 | 0 / 8 / 0 | 18 / 19 / 18 | 0 / 2 / - |
+
+Over all n:
+
+| model | j | all in C | 90% in C | median time to 90% | closest pair, min / median |
+|---|---|---|---|---|---|
+| hybrid | 1 | 3 / 9 | 8 / 9 | 76 s | 0.10 / 0.24 m |
+| hybrid | 2 | 7 / 8 | 7 / 8 | 81 s | 0.10 / 0.11 m |
+| hybrid | 4 | 8 / 8 | 8 / 8 | 72 s | 0.11 / 0.24 m |
+| couzin | 1 | 0 / 9 | 0 / 9 | - | 0.12 / 0.29 m |
+| couzin | 2 | 3 / 9 | 3 / 9 | 144 s | 0.14 / 0.28 m |
+| couzin | 4 | 6 / 8 | 6 / 8 | 120 s | 0.16 / 0.30 m |
+| reynolds | 1 | 0 / 9 | 0 / 9 | - | 0.26 / 0.48 m |
+| reynolds | 2 | 0 / 8 | 1 / 8 | 128 s | 0.26 / 0.47 m |
+| reynolds | 4 | 0 / 8 | 3 / 8 | 137 s | 0.26 / 0.44 m |
+
+"All in C" counts a run once every drone has been in C at the same
+time, even if one later left. No crashes in any model.
+
+- **The hybrid is the only model that reliably brings the flock.**
+  With 2 or 4 leaders it got everyone in 15 of 16 runs, in 70-80 s,
+  about the leaders' own pace. It pays in spacing: its closest pairs
+  are the tightest (median 0.11 m with j = 2). It was also tuned on this
+  very map, which the other two weren't. That's a confound, so this
+  sweep can't say the hybrid's *rules* are better, only that the tuned
+  hybrid is.
+- **Couzin needs many leaders.** With j = 1, no drone reached C in any
+  run, *not even the leader*: with ω = 0.5 the flock outvotes it. That
+  matches Couzin et al. (2005), where accuracy grows with the informed
+  fraction and a weak ω needs more informed individuals. j = 2 is a coin
+  toss (3 of 9). j = 4 works up to n = 20 and degrades at n = 30
+  (23 and 17 of 30, one run split). Where it works it is slower
+  (120-145 s) but keeps its spacing (median 0.29 m, close to the 0.3 m
+  stopping margin).
+- **Couzin, n = 20, j = 4 ends with 19 in all three seeds.** Every
+  drone was in C at some point in each run, then one was outside at
+  200 s. Settled Couzin drones hold still, so it must have left before
+  settling: a follower flies at full v_flock until it settles, unlike a
+  leader, so it may overshoot C or be pushed out. Too regular for
+  chance; not yet looked at in Webots.
+- **Reynolds never brought the whole flock.** The inner-corner local
+  minimum of the first runs holds across the sweep. With j = 4 and
+  n = 20 most drones got in (18-19 of 20), but the flock split in two
+  every time. Its spacing is the widest (0.44-0.48 m median), because a
+  stuck flock doesn't squeeze through anything.
+- **The ceiling hides the failures.** Every failed run sits at the
+  200 s cap, so "time to 90%" says nothing about them. The drones in C
+  at the end is the fairer primary measure. Three seeds per cell is a
+  pilot, not a test: the course's method (hypotheses fixed beforehand,
+  many replicas, Wilcoxon tests) needs 20-30 seeds on fewer cells.
+
+## 2026-10-27 · Phase 5: the plan, closed
+
+The 2026-10-15 entry set the idea: leaders plan a path on the map
+(deliberative), the flocking rules stay reactive, and followers stay
+untouched. Before implementing, Marco settled the open choices.
+
+**Who plans.** Each leader, for itself, from its own position, once at
+the start (the map is static). Where an obstacle splits the way, a leader
+on the right takes the right passage and one on the left takes the left:
+the natural choice for each. The flock may then split around the obstacle.
+That's fine for the mission if each part keeps a leader; the sweep will
+show how often one doesn't. Turned down: planning in the world generator,
+which would leave the robot only following a list, no longer
+deliberating.
+
+**What it plans around.** The arena and the walls, including the gap
+wall. Any obstacle whose footprint is smaller than 1 m across (longest
+side of a box, diameter of a pillar) is ignored and left to the drones'
+own avoidance, the stopping limit. So pillars, at most 0.3 m wide, go; the
+gap wall's 2 m halves stay. The arena outline is always kept, whatever
+the size of its pieces.
+
+**Clearance, and so the algorithm.** No single clearance works:
+
+- too large, and narrow passages vanish from the map, though drones fly
+  through spaces narrower than the flock, as in the forest;
+- too small, and the path hugs every corner and drags the flock into it.
+
+So the clearance is soft: **A\* on a grid with a clearance cost**, the
+cost-map approach of mobile robotics.
+
+- Cells are 0.25 m.
+- A cell closer than 0.3 m to a wall (the drone's stop margin) is
+  forbidden.
+- Closer than 2 m it costs more, rising toward the wall. In an 8 m hall
+  the centre line is free; a 4 m gap is crossed through its middle; a
+  narrower passage is still allowed, at a price.
+- Leaders don't know n, so the clearance is one fixed value.
+
+Then the path is pruned to its corners. A shortcut between two waypoints
+is kept only if it never comes closer to a wall than the planned path
+between them already did. That way pruning can't undo the clearance by
+cutting a corner.
+
+Turned down:
+
+- A visibility graph: exact and short, but needs the one clearance we
+  can't choose.
+- Voronoi or medial-axis roadmaps: maximal clearance everywhere, but
+  long detours in open rooms.
+- Sampling planners (RRT, PRM): built for high-dimensional spaces, and
+  random.
+
+**Following the path: pure pursuit.** The leader aims at the point 2 m
+ahead along its path, from wherever the flock has pushed it, so it never
+replans. The models already slow a leader down by the length of its
+`to_goal`. So `to_goal` becomes the direction to that point, times the
+distance left along the path. A leader still stops at C, and no model
+changes.
+
+**The experiment** (hypotheses from 2026-10-15, fixed before running):
+reactive against planning leaders, same n, j and seeds.
+
+- `l_hall`: the current sweeps (all three models) are the reactive
+  baseline.
+- A new map whose straight line to C runs into a dead end, where
+  reactive leaders should clearly fail.
+- Plan on and off, swept once the code is in.
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?
@@ -1353,13 +1559,3 @@ and in 8 of 8 with j = 4. No crashes.
   spacing. (A drone's own body does not block its IR: checked, see above.)
 - Phase 4: which obstacles can be flown over in the reachability check
   (today every obstacle blocks).
-- Phase 5, planner: A* on a grid (simple, any shape) or shortest paths on a
-  visibility graph of the shrunk free space (exact, few waypoints; shapely
-  is already a dependency)?
-- Phase 5, where the map comes from: the generator writes the course into
-  the leaders' `customData` and the leader plans (controllers still never
-  parse map files), or the generator plans and writes only the waypoints
-  (simpler, but then the robot no longer deliberates). Leaning: the first.
-- Phase 5, clearance: a path hugging the inner corner drags the flock into
-  it, and the flock is wider when n is larger. Plan with a clearance of
-  about the flock's radius, not `DRONE_RADIUS`?
