@@ -40,7 +40,8 @@ def test_attraction_and_alignment_weigh_the_same():
 
 def test_repulsion_comes_first_and_alone():
     drone = Couzin(P)
-    wanted(drone, [at(0.4, velocity=Vec3(0, 1, 0)), at(0, 2.0, velocity=Vec3(0, 1, 0))])
+    close = P.couzin_repulsion / 2
+    wanted(drone, [at(close, velocity=Vec3(0, 1, 0)), at(0, 2.0, velocity=Vec3(0, 1, 0))])
     assert drone.direction == Vec3(-1, 0, 0)  # away from the close one, nothing else
 
 

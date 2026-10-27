@@ -1633,6 +1633,41 @@ mostly measures the tuning. Marco proposed tuning the other two.
 `tools/tune.py` runs a grid and ranks it
 (`logs/tune_<map>_<model>.csv`).
 
+### Tuning results
+
+Couzin, seed 100 (drones in C at 200 s, time to 90%):
+
+| ω \ α | 0.4 m | 0.6 m | 0.8 m |
+|---|---|---|---|
+| 0.5 | 18/20, 116 s | 0/20 | 0/20 |
+| 1 | 20/20, 184 s | 2/20 | 0/20 |
+| 2 | 20/20, 74 s | 0/20 | 0/20 |
+| 3 | 0/20, closest pair 0.02 m | 0/20 | 0/20 |
+
+The best 3 on seed 101: ω = 1 got 20/20 at 83 s, ω = 2 got 18/20 (90% at
+97 s), and ω = 0.5 got 0/20.
+
+- **Winner: ω = 1, α = 0.4 m**, all 20 in on both seeds. Flagged: its
+  closest pair was 0.10 m in both runs, touching distance, the hybrid's
+  own crowd problem. ω = 2 kept 0.13-0.16 m and was faster but lost 2
+  drones on seed 101. With two seeds the two can't be told apart.
+- **α decides everything.** Only 0.4 m works: with a wider zone of
+  repulsion, which overrides everything else, drones spend too long only
+  avoiding each other in the narrow spots (the gap, the corner).
+- **Hypothesis 1 holds:** ω has a best value in the middle. At ω = 3 the
+  leaders push through the flock, and the closest pair reached 0.02 m.
+
+Reynolds, seed 100: 0/20 for 11 of the 12 combinations; goal 4 with
+alignment 4 got 1/20, and 1/20 again on seed 101. With eleven tied at
+zero there was no "best 3" to confirm, so Reynolds got 13 runs, not 15.
+
+- **Winner: goal 4, alignment 4**, though it hardly works.
+- **Hypothesis 2 holds** so far: no weights bring Reynolds round the
+  corner with the plan off. It stays at the inner corner, as before.
+
+Both winners are now the defaults (`boids/params.py`, with the untuned
+values in the comments). The hybrid's are unchanged.
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?

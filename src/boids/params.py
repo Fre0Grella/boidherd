@@ -65,14 +65,16 @@ class BoidParams:
     arrive_radius: float = 3.0  # m
     # couzin only (couzin.py): a neighbour inside couzin_repulsion is all a drone avoids;
     # leaders add couzin_weight x the goal's direction to the social one (Couzin's omega)
-    couzin_repulsion: float = 0.6  # m (Couzin's alpha), above stop_drone
-    couzin_weight: float = 0.5
-    # reynolds only (reynolds.py): phase 2's weights, then at 0.5 m/s, in units of v_flock
+    # tuned on l_hall (design log, 2026-10-27); untuned: 0.6 m and 0.5
+    couzin_repulsion: float = 0.4  # m (Couzin's alpha), above stop_drone
+    couzin_weight: float = 1.0
+    # reynolds only (reynolds.py): phase 2's weights, then at 0.5 m/s, in units of v_flock;
+    # goal and alignment tuned on l_hall (design log, 2026-10-27), untuned 2.0 and 2.0
     reynolds_separation_radius: float = 1.0  # m, who is too close
     reynolds_separation: float = 4.0  # m/s^2 x v_flock^2 at half the radius (phase 2: 1.0)
-    reynolds_alignment: float = 2.0  # 1/s x v_flock, per m/s off the neighbours' mean (1.0)
+    reynolds_alignment: float = 4.0  # 1/s x v_flock, per m/s off the neighbours' mean (1.0)
     reynolds_cohesion: float = 1.2  # 1/s^2 x v_flock^2, per metre to their centre (0.3)
-    reynolds_goal: float = 2.0  # 1/s x v_flock, a leader's pull toward v_flock at the goal (1.0)
+    reynolds_goal: float = 4.0  # 1/s x v_flock, a leader's pull toward v_flock at the goal (1.0)
     # the mission clock: before go_time the flock forms (no cruise, no goal); from then
     # leaders head for the goal and everyone may cruise (design log, the start sequence)
     go_time: float = 16.0  # s of simulated time (all hover by ~6 s)
