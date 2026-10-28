@@ -1820,6 +1820,166 @@ Still to look at: replays of the hybrid's slow and failed `dead_end`
 runs with the plan (seeds 8, 9 and one slow one), Couzin's wall-sliding
 on `dead_end` without the plan, and the crowding to 0.10 m.
 
+## 2026-10-28 · Leaders plan again; runs end at a time limit
+
+### The replays: the leaders stuck in the cup
+
+The hybrid on `dead_end` with the plan, replayed (the runs repeat
+exactly):
+
+- **Seed 8 (0/20).** At go time the followers line up with the leaders
+  and the whole flock heads +x, into the cup's mouth, dragging both
+  leaders in. From 40 s to the end both leaders sit at x = 21.5, the
+  stopping margin in front of the cup's back wall, with the flock
+  around them.
+- **Seed 0 (19/20, 90% at 118 s).** One leader is stuck the same way
+  to the end. The other gets back out of the cup and round, but the
+  flock has lost it by then. The followers carry on west to the room's
+  wall, then down and along the bottom wall into C, which they reach
+  by chance: the room is closed and C is at its far end.
+
+**The cause is the path following, not the plan.** Pure pursuit aims at
+the point 2 m along the path in a straight line. Pushed into the cup,
+the leader finds that point beyond the cup's wall, aims through it, and
+the stopping limit holds it there: the local minimum the plan was meant
+to remove, back on a small scale. Phase 5 assumed the leader "never
+replans" because pursuit brings it back to the path from wherever the
+flock pushes it. That holds in open space, not behind a wall.
+
+Options (Marco chose 1):
+
+1. **Plan again when a wall cuts the leader off.** Monitoring the
+   plan's execution and replanning when it fails is the missing part of
+   a hybrid architecture, not a patch on the reactive layer.
+2. Keep planning once and report it as a limitation. The n × j sweep on
+   `dead_end` would then partly measure this flaw instead of
+   leadership.
+
+### Planning again
+
+- **When.** Whenever an obstacle the plan goes round (the arena outline,
+  walls and pillars at least 1 m across) stands between the leader and
+  its lookahead point. The test is exact (segment against box or disk),
+  so following the path normally never triggers it.
+- **How often.** At most once a second (`plan.replan_every`), which
+  bounds the cost of a leader stuck where the view keeps flickering.
+- **From where.** From the leader's position, with the same A* and
+  clearance. The grid is built once per leader (`planner.Planner`), so
+  each new plan costs one search. If no path is found, the old one
+  stays.
+- **The code.** `planner.Route` holds the plan and the pursuit and
+  decides when to plan again; the controller only asks it for
+  `to_goal`. The `planner` tests cover a cup like `dead_end`'s: on the
+  path, one plan; pushed into the cup, a new plan heading back out of
+  its mouth first.
+
+Replayed with replanning:
+
+| seed | plan once | plan again |
+|---|---|---|
+| 8 | 0/20; both leaders stuck in the cup | 20/20, 90% at 120 s; leaders in C at ~80 and ~100 s |
+| 0 | 19/20, 90% at 118 s; one leader stuck | 20/20, 90% at 110 s; both leaders in C by ~100 s |
+
+The leaders now get out, but the flock still doesn't follow them. When
+they turn back out of the cup, the followers keep their heading west,
+out of the leaders' sight, and reach C later by wandering. That's no
+longer a planner flaw: it's the leadership question itself, what two
+unrecognised leaders can do against eighteen followers' momentum.
+
+### A time limit, and a control with no leaders
+
+**The problem.** A closed room lets a flock that lost its leaders reach
+C by chance, given time. At 200 s, those runs count as successes: false
+positives for leadership. Marco's proposal: end each run soon after the
+time a guided flock needs.
+
+**The rule:** the limit is the go time plus twice the time the leaders
+would need alone along their planned path (A's centre to C's centre, at
+v_flock):
+
+| map | planned path | leaders alone (go at 16 s) | limit |
+|---|---|---|---|
+| `dead_end` | 33.4 m | 49 s | **83 s** |
+| `l_turn` | 47.9 m | 64 s | **112 s** |
+
+- Twice, not "+10 s": larger flocks take longer to pass a gap (on
+  `l_hall`, n = 30 took 10-40 s more than n = 20), so a tight margin
+  would count guided large flocks as failures and bias the n × j result
+  against large n.
+- It separates the evaluation's runs: on `dead_end` guided arrivals took
+  47-63 s, the wanderers 108-148 s.
+- A tighter cutoff can still be applied afterwards from each run's time
+  to 90%; a looser one couldn't.
+
+**The measure becomes "90% in C within the limit"**, a success or a
+failure per run, with the time to 90% second. Runs end at the limit, so
+sweeps get faster too. A flock with no leaders (j = 0) runs at the same
+limit as a control: it measures how often wandering alone succeeds.
+
+**Too hard a limit? Checked, kept.** With replanning, the hybrid's flock
+reached 90% on `dead_end` within the limit in only 2 of 10 runs, which
+raised the question. But at the limit only the leaders (1-2 drones) were
+in C, not a flock half in, and in both replays the followers' centre was
+15-23 m from the nearest leader at 80 s, far outside the 2.5 m perception: lost,
+not slow. A looser limit (3×) as a check was considered and dropped.
+
+The 200 s evaluation's plan-off runs are unaffected by replanning and
+are rescored from their time to 90%. The plan-on runs are redone with
+replanning and the limits; the plan-once results are kept in
+`logs/stale/plan-once/`.
+
+### The evaluation again: replanning, success within the limit
+
+Same runs as the 2026-10-28 evaluation (20 drones, 2 leaders, seeds
+0-9), plan-on runs redone, all scored as success = 90% in C within the
+limit. This replaces that section's findings where they differ. Paired
+by seed, exact McNemar test (binomial on the seeds where the two
+differ; with 10 seeds the smallest possible p is 0.002).
+
+Runs reaching 90% in C within the limit (+ per seed, 0-9):
+
+| | `dead_end` (83 s), plan off | plan on | `l_turn` (112 s), plan off | plan on |
+|---|---|---|---|---|
+| hybrid | 0/10 | 2/10 `..++......` | 10/10 | 10/10 |
+| couzin | 3/10 | 6/10 `.+++.++..+` | 9/10 | 9/10 |
+| reynolds | 0/10 | 8/10 `+++++.+.++` | 0/10 | 10/10 |
+
+Median time to 90% where reached: `dead_end` plan on hybrid 47 s,
+Couzin 57 s, Reynolds 56 s; `l_turn` 66-75 s for every model and
+setting that got there.
+
+- **Replanning changed only the failures.** Every run that succeeded
+  with one plan succeeded with replanning at the same time to the
+  millisecond: replanning never triggered when the flock followed.
+- **With the plan, the order on `dead_end` reverses.** Reynolds, which
+  never got round anything without the plan, brings the flock round the
+  cup in 8 of 10 runs; Couzin in 6; the hybrid, the best model on its
+  tuning map, in 2. Hybrid against Reynolds: 6 seeds to Reynolds, none
+  the other way, p = 0.03 (uncorrected). In the hybrid's 8 failures
+  only the leaders (1-2 drones) are in C at the limit.
+- **Why, a hypothesis for the n × j sweep and the replays:** the
+  hybrid's followers keep a cruise along their neighbours' mean
+  direction, damped by friction, so the flock has momentum, and two
+  leaders turning back out of the cup can't turn it. Reynolds'
+  followers have no cruise of their own: tuned alignment and cohesion
+  make them copy the leaders' turn.
+- **The plan matters most for Reynolds** (`dead_end` 0 → 8/10, p = 0.008;
+  `l_turn` 0 → 10/10, p = 0.002). For the hybrid and Couzin the
+  differences are 2 and 4 seeds, not significant with 10.
+- **Plan off, rescored**: Couzin's 7/10 on `dead_end` at 200 s is 3/10
+  within the limit. Its late arrivals were mostly the slow drift the
+  limit is meant to exclude.
+- **`l_turn` is at the ceiling** for the hybrid and Couzin either way and
+  for Reynolds with the plan: it doesn't separate them.
+- **Safety unchanged:** Couzin is the only model with crashes (1 run of
+  10 per map with the plan); Reynolds keeps the widest spacing (closest
+  pair 0.44 m or more), the hybrid and Couzin reach touching distance.
+  Plan-off crash counts come from 200 s runs, so they include crashes
+  after the limit.
+
+The final sweep's question follows: does the hybrid's flock follow with
+more leaders, and how does each model's success grow with j at each n?
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?
