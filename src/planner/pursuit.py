@@ -1,8 +1,9 @@
 """Following a planned path: pure pursuit.
 
 The leader aims at the point `lookahead` metres ahead along its path, from
-the point of the path nearest to it, wherever the flock has pushed it, so
-it never needs to replan. Progress along the path only moves forward, and
+the point of the path nearest to it, wherever the flock has pushed it.
+Pushed behind a wall, that point can lie on the other side of it: then the
+leader plans again (planner.route). Progress along the path only moves forward, and
 the nearest point is looked for a little way ahead of it, so a path that
 doubles back near itself can't make the leader skip a stretch.
 
@@ -29,13 +30,14 @@ class Pursuit:
         self.lengths = [math.dist(a, b) for a, b in self.segments]
         self.total = sum(self.lengths)
         self.progress = 0.0  # m along the path
+        self.target = path[0]  # the lookahead point last aimed at
 
     def to_goal(self, position: Vec3) -> Vec3:
         """From `position` toward the lookahead point, as long as the way still to go."""
         here = (position.x, position.y)
         self.progress = self._nearest(here)
         s = min(self.total, self.progress + self.lookahead)
-        target = self.point_at(s)
+        target = self.target = self.point_at(s)
         aim = Vec3(target[0] - here[0], target[1] - here[1], 0)
         remaining = aim.length() + (self.total - s)
         return aim.unit() * remaining if aim.length() > 0 else Vec3()

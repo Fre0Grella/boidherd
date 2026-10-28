@@ -11,8 +11,9 @@ only recognise it when they are in it (a ground marker; here GPS against
 C's rectangle). Nothing marks a leader to the others (Couzin 2005).
 Every drone knows the walls from the map and where it is from GPS
 (boids.to_walls). With `plan.planning` on, a leader plans its own path
-round the walls once, at go time, from where it is, and follows it
-(planner); off, or if no passage is wide enough, it aims straight at C.
+round the walls at go time, from where it is, follows it, and plans again
+whenever the flock has pushed it behind a wall (planner.route); off, or
+while no passage is wide enough, it aims straight at C.
 """
 
 from boids import BoidParams, Box, Disk, make_model, to_walls
@@ -20,7 +21,7 @@ from flight import Autopilot, FlightParams, acceleration_for
 from flight.crazyflie import Crazyflie
 from flight.radio import encode
 from flight.sensing import neighbours
-from planner import PlanParams, Pursuit, plan
+from planner import Planner, PlanParams, Route
 from util import Vec3
 from util.overrides import overrides
 
@@ -37,8 +38,8 @@ pillars: list[Disk] = [tuple(float(v) for v in d) for d in drone.config["pillars
 solid = boundary + walls  # everything the stopping limit keeps clear of, with the pillars
 planning = PlanParams(**overrides("plan"))
 model = make_model(rules, leader, pilot.p.velocity_tau)
-route: Pursuit | None = None  # a leader's planned path, from go time on
-planned = False
+route: Route | None = None  # a leader's way to C, from go time on
+plans = 0
 last_time = drone.time
 
 while drone.step():
@@ -50,22 +51,18 @@ while drone.step():
     heard = neighbours(drone.id, drone.receptions(), attitude)
     go = now >= rules.go_time
     in_c = x_min <= position.x <= x_max and y_min <= position.y <= y_max
-    if leader and go and planning.planning and not planned:
-        planned = True
-        start, goal = (position.x, position.y), (centre.x, centre.y)
-        path = plan(start, goal, boundary, walls, pillars, planning)
-        route = Pursuit(path, planning.lookahead) if path else None
-        print(
-            f"drone {drone.id}: path {path}"
-            if path
-            else f"drone {drone.id}: no path, straight at C"
-        )
-    if not (leader and go):
-        to_goal = None
-    elif route is not None:
-        to_goal = route.to_goal(position)
-    else:
-        to_goal = centre - position
+    if leader and go and planning.planning and route is None:
+        route = Route(Planner(boundary, walls, pillars, planning), (centre.x, centre.y), planning)
+    to_goal = None
+    if leader and go:
+        if route is not None:
+            to_goal = route.to_goal(position, now)
+            if route.plans != plans:
+                plans = route.plans
+                assert route.pursuit is not None
+                print(f"drone {drone.id}: plan {plans} at {now:.1f} s: {route.pursuit.path}")
+        if to_goal is None:
+            to_goal = centre - position
     wanted = model.wanted(
         velocity, heard, now, go, in_c, to_goal, to_walls(position, solid, pillars)
     )

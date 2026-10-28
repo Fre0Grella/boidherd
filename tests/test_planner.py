@@ -6,7 +6,7 @@ import pytest
 from boids.obstacles import Box
 from maps import load_map
 from maps.course import build_course
-from planner import PlanParams, Pursuit, plan
+from planner import Planner, PlanParams, Pursuit, Route, plan
 from planner.plan import Grid, kept_obstacles
 from util import Vec3
 
@@ -146,3 +146,58 @@ def test_progress_only_moves_forward_on_a_path_that_doubles_back():
     later = pursuit.progress
     pursuit.to_goal(Vec3(5.0, 0.4, 0))  # between both legs: must stay on the second
     assert pursuit.progress >= later
+
+
+# --- planning again ----------------------------------------------------------------
+
+# a cup open toward the start, as in dead_end: the straight line to the goal ends in it
+CUP = [(11.9, 2.0, 12.1, 9.0), (7.0, 8.9, 11.9, 9.1), (7.0, 1.9, 11.9, 2.1)]
+START, GOAL = (2.0, 5.5), (18.0, 5.5)
+
+
+def cup_route() -> Route:
+    return Route(Planner(room(20, 12), CUP, [], P), GOAL, P)
+
+
+def test_a_wall_blocks_the_view_and_a_small_obstacle_doesnt():
+    planner = Planner(room(20, 10), [(9.9, 0.0, 10.1, 7.0), (5.0, 4.8, 5.4, 5.2)], [], P)
+    assert not planner.sees((2.0, 2.0), (18.0, 2.0))  # through the wall
+    assert planner.sees((2.0, 8.0), (18.0, 8.0))  # over its end
+    assert planner.sees((2.0, 5.0), (8.0, 5.0))  # through the 0.4 m box, left to the drones
+
+
+def test_a_big_pillar_blocks_the_view():
+    planner = Planner(room(20, 10), [], [(10.0, 5.0, 1.0)], P)
+    assert not planner.sees((2.0, 5.0), (18.0, 5.0))
+    assert planner.sees((2.0, 2.0), (18.0, 2.0))
+
+
+def test_a_leader_on_its_path_plans_once():
+    route = cup_route()
+    path = None
+    for k in range(60):  # 6 s along the path at 1 m/s
+        if route.pursuit is not None:
+            path = route.pursuit
+            here = path.point_at(k * 0.1)
+        else:
+            here = START
+        route.to_goal(Vec3(here[0], here[1], 0), now=k * 0.1)
+    assert path is not None and route.plans == 1
+
+
+def test_pushed_behind_a_wall_it_plans_again_from_where_it_is():
+    route = cup_route()
+    route.to_goal(Vec3(START[0], START[1], 0), now=0.0)
+    first = route.pursuit
+    assert first is not None and any(q[1] > 9.1 for q in first.path)  # round the top arm
+    inside = Vec3(11.0, 8.0, 0)  # the flock pushed it into the cup, under an arm
+    v = route.to_goal(inside, now=0.5)  # too soon to plan again
+    assert route.plans == 1
+    v = route.to_goal(inside, now=1.0)
+    assert route.plans == 2 and route.pursuit is not first
+    assert v is not None and v.x < 0  # back out of the cup's mouth first
+
+
+def test_with_no_passage_there_is_no_route():
+    route = Route(Planner(room(20, 10), [(9.9, 0.0, 10.1, 10.0)], [], P), (18.0, 2.0), P)
+    assert route.to_goal(Vec3(2.0, 2.0, 0), now=0.0) is None

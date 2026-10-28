@@ -18,3 +18,6 @@ class PlanParams:
     clearance_weight: float = 4.0
     # following: aim at the point this far ahead along the path (pure pursuit)
     lookahead: float = 2.0  # m
+    # a leader whose lookahead point is behind a planned-round obstacle plans again from
+    # where it is, at most this often
+    replan_every: float = 1.0  # s

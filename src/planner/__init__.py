@@ -4,7 +4,8 @@ Pure maths, no Webots. Followers never use it.
 """
 
 from .params import PlanParams
-from .plan import plan
+from .plan import Planner, plan
 from .pursuit import Pursuit
+from .route import Route
 
-__all__ = ["PlanParams", "Pursuit", "plan"]
+__all__ = ["PlanParams", "Planner", "Pursuit", "Route", "plan"]

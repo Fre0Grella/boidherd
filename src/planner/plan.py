@@ -14,6 +14,9 @@ The cells are then pruned to a few waypoints. A shortcut from one waypoint
 to a later one is kept only if it never comes closer to a wall than the
 planned path between them did, so pruning can't cut a corner the cost
 kept the path away from.
+
+A Planner keeps the grid, so a leader can plan again from where it is
+(planner.route) at the price of one A* search.
 """
 
 import heapq
@@ -76,6 +79,34 @@ class Grid:
         return 1.0 + p.clearance_weight * min(1.0, closeness) ** 2
 
 
+class Planner:
+    """One map's planner: the grid is built once, then every plan reuses it.
+    `boundary`: the arena outline as boxes; `walls`, `pillars`: the map's obstacles, of
+    which only those at least min_size across are planned round."""
+
+    def __init__(
+        self, boundary: list[Box], walls: list[Box], pillars: list[Disk], p: PlanParams
+    ) -> None:
+        self.boxes, self.disks = kept_obstacles(boundary, walls, pillars, p)
+        self.grid = Grid(self.boxes, self.disks, p)
+
+    def plan(self, start: Point, goal: Point) -> list[Point] | None:
+        """Waypoints from `start` to `goal` (both included), or None if no passage is wide
+        enough."""
+        grid = self.grid
+        cells = _astar(grid, grid.cell(start), grid.cell(goal))
+        if cells is None:
+            return None
+        points = [start] + [grid.centre(c) for c in cells[1:-1]] + [goal]
+        return _prune(points, grid)
+
+    def sees(self, a: Point, b: Point) -> bool:
+        """Whether the straight line from a to b misses every obstacle a plan goes round."""
+        return not any(_crosses_box(a, b, box) for box in self.boxes) and not any(
+            _distance_to_segment((d[0], d[1]), a, b) < d[2] for d in self.disks
+        )
+
+
 def plan(
     start: Point,
     goal: Point,
@@ -84,17 +115,8 @@ def plan(
     pillars: list[Disk],
     p: PlanParams | None = None,
 ) -> list[Point] | None:
-    """Waypoints from `start` to `goal` (both included), or None if no passage is wide
-    enough. `boundary`: the arena outline as boxes; `walls`, `pillars`: the map's
-    obstacles, of which only those at least min_size across are planned round."""
-    p = p or PlanParams()
-    boxes, disks = kept_obstacles(boundary, walls, pillars, p)
-    grid = Grid(boxes, disks, p)
-    cells = _astar(grid, grid.cell(start), grid.cell(goal))
-    if cells is None:
-        return None
-    points = [start] + [grid.centre(c) for c in cells[1:-1]] + [goal]
-    return _prune(points, grid)
+    """One plan on a map, without keeping its planner (Planner.plan)."""
+    return Planner(boundary, walls, pillars, p or PlanParams()).plan(start, goal)
 
 
 def _clearance(q: Point, boxes: list[Box], disks: list[Disk]) -> float:
@@ -148,6 +170,32 @@ def _prune(points: list[Point], grid: Grid) -> list[Point]:
         kept.append(points[j])
         i = j
     return kept
+
+
+def _crosses_box(a: Point, b: Point, box: Box) -> bool:
+    """Whether segment a-b passes through the box (Liang-Barsky clipping)."""
+    t0, t1 = 0.0, 1.0
+    for start, delta, low, high in (
+        (a[0], b[0] - a[0], box[0], box[2]),
+        (a[1], b[1] - a[1], box[1], box[3]),
+    ):
+        if delta == 0:
+            if not low < start < high:
+                return False
+            continue
+        enter, leave = sorted(((low - start) / delta, (high - start) / delta))
+        t0, t1 = max(t0, enter), min(t1, leave)
+        if t0 >= t1:
+            return False
+    return True
+
+
+def _distance_to_segment(q: Point, a: Point, b: Point) -> float:
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    length2 = dx * dx + dy * dy
+    t = 0.0 if length2 == 0 else ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / length2
+    t = min(1.0, max(0.0, t))
+    return math.dist(q, (a[0] + dx * t, a[1] + dy * t))
 
 
 def _segment_clearance(a: Point, b: Point, grid: Grid) -> float:
