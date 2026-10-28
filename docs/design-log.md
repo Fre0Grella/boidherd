@@ -1709,6 +1709,117 @@ The retune, fixed before running:
 The Couzin seed-0 evaluation runs were made with the old ω, so they're
 set aside (`logs/stale/`) and run again with the new one.
 
+**Result: ω stays 1.** Drones in C at 200 s, plan off / on:
+
+| ω | seed 100 | seed 101 |
+|---|---|---|
+| 0.25 | 0/20 · 20/20 | - |
+| 0.5 | 18/20 · 20/20 | 0/20 · 20/20 |
+| 0.75 | 20/20 · 0/20 | - |
+| **1** | **20/20 · 20/20** | **20/20 · 20/20** |
+
+- **The hypothesis is rejected.** A weaker pull didn't keep the leaders
+  in the flock: ω = 1 got all 20 in on all 4 runs; the others failed on
+  some. With no trend in ω (0.75 fails where 0.5 and 1 work), each run
+  is all or nothing.
+- **The failure doesn't happen on the tuning map.** On `l_hall`, ω = 1
+  works with the plan on (20/20 at 78-89 s). It failed on `l_turn` and
+  `dead_end`, held out from tuning on purpose. So no `l_hall` tuning can
+  fix it. Losing the flock depends on where the leaders stand at go
+  time and on the followers' slower pace, not on how hard they pull.
+- **So it's a property of the model, not a tuning error.** A Couzin
+  leader gets no feedback on whether it's followed. Off the walls,
+  nothing holds it to the flock's pace, and once out of sight it's
+  gone for good. The evaluation's 10 seeds measure how often.
+
+**Decision (Marco): keep Couzin as published.** A rule for its leaders
+to wait for the flock would fix this, but it's no longer Couzin's model.
+The failure is reported as a finding, measured over the seeds. A waiting
+variant could be a fourth model later.
+
+With ω unchanged, the seed-0 runs set aside are valid again (Webots runs
+are deterministic), so they're back in `logs/`. Seeds 1-9 run with the
+hybrid and Reynolds first, Couzin last.
+
+## 2026-10-28 · The evaluation: held-out maps, plan off and on
+
+The comparison the tuning protocol pointed to: the three tuned models
+on the two maps none of them was tuned on, `dead_end` and `l_turn`, with
+the plan off and on. 20 drones, 2 leaders, 200 s, seeds 0-9: 120 runs,
+`logs/sweep_<map>_<model>[_plan].csv`. The same seed puts the drones in
+the same starting spots for every model and plan setting, so the
+comparisons pair the runs by seed (Wilcoxon signed-rank on the drones in
+C at the end; with 10 pairs the smallest possible p is 0.002).
+
+Drones in C at 200 s, per seed 0-9, and how many runs reached 90%:
+
+| map | model | plan off | 90% | plan on | 90% |
+|---|---|---|---|---|---|
+| `dead_end` | hybrid | 0 0 18 0 10 0 0 0 0 0 | 1/10 | 19 19 20 20 19 19 19 18 0 0 | 8/10 |
+| | couzin | 18 18 18 0 0✗ 18 20 18 18 0✗ | 7/10 | 2 20 20 20 1 19 20 17 1✗ 20 | 6/10 |
+| | reynolds | all 0 | 0/10 | 20 17 20 20 19 2 19 2 20 20 | 8/10 |
+| `l_turn` | hybrid | all 20 | 10/10 | all 20 | 10/10 |
+| | couzin | 20 18 20 20 20 20 20 20 20 20 | 10/10 | 3✗ 20 20 20 20 20 20 20 20 20 | 9/10 |
+| | reynolds | 0 (one run: 1) | 0/10 | all 20 | 10/10 |
+
+✗: a run with a crash (two drones collided).
+
+Median time to 90% in C, over the runs that got there, plan off / on:
+`dead_end` hybrid 148 s (one run) / 113 s, Couzin 97 / 58 s, Reynolds -
+/ 56 s; `l_turn` hybrid 68 / 66 s, Couzin 75 / 75 s, Reynolds - / 69 s.
+
+**Plan on against off**, per model (seeds better / worse / tied, p):
+
+| | `dead_end` | `l_turn` |
+|---|---|---|
+| hybrid | 8 / 0 / 2, p = 0.008 | identical (all 20/20); 90% 2 s sooner on all 10, p = 0.002 |
+| couzin | 6 / 3 / 1, p = 0.40 | 1 / 1 / 8, p = 1 |
+| reynolds | 10 / 0 / 0, p = 0.002 | 10 / 0 / 0, p = 0.002 |
+
+**Findings:**
+
+- **The plan is what gets the hybrid and Reynolds through `dead_end`.**
+  Aiming straight at C, they push into the cup and stay there: one run
+  in 20 reached 90%. With the plan, 16 in 20. The three significant
+  differences survive a Holm correction over the six plan comparisons.
+- **Hypothesis 2 holds:** with the plan, Reynolds goes round the corner
+  every time on `l_turn` (0/10 → 10/10). The corner trap is the
+  straight-line goal, not the rules.
+- **Couzin neither gains nor loses from the plan overall**, but it
+  changes how it fails. Without the plan it fails 3 times in 10 on
+  `dead_end`; with it, 4 runs in 20 end with only the leaders and one or
+  two followers in C (seeds 0, 4, 8 on `dead_end`, seed 0 on `l_turn`):
+  the leaders lost the flock, as the replay showed. When the flock does
+  follow, the plan makes it fast (58 s against 97 s on `dead_end`).
+- **With the plan on, the three models can't be told apart** on reaching
+  C (all paired p > 0.8). Each fails on a few seeds, each its own way:
+  the hybrid's whole flock stays behind on seeds 8 and 9 (0/20),
+  Reynolds loses most of it on seeds 5 and 7 (2/20), Couzin's leaders
+  leave it on three seeds.
+- **Plan off, Couzin is the best on `dead_end`** (7/10 against the
+  hybrid's 1/10, p = 0.03; against Reynolds' 0/10, p = 0.016), though
+  neither survives a correction over all the model comparisons. Why is
+  a guess so far (its leaders slide along the cup's walls where the
+  others stop); it wants a replay before it goes in the report.
+- **The hybrid is slow on `dead_end` with the plan.** Two runs reach
+  90% at 47 s, six at 108-118 s, as fast as Couzin and Reynolds (54-63
+  s) only on the two quick seeds. Something holds most of its flock back
+  for about a minute: a split at the cup is the guess, to replay.
+- **Hypothesis 3 holds for reaching C, not for spacing.** Tuned Couzin
+  matches or beats the hybrid on reaching C. But it isn't wider: its
+  closest pairs are 0.10-0.22 m (median), and it is the only model that
+  crashed, in 4 runs of 40. Reynolds keeps 0.42-0.51 m and never
+  crashed; the hybrid reaches touching distance (0.10 m) but didn't
+  crash.
+- **Ceiling on `l_turn`.** Hybrid and Reynolds with the plan put all 20
+  in C every time; only time to 90% separates them there. `l_turn` is
+  too easy to rank models on reaching C, `dead_end` is the map that
+  discriminates.
+
+Still to look at: replays of the hybrid's slow and failed `dead_end`
+runs with the plan (seeds 8, 9 and one slow one), Couzin's wall-sliding
+on `dead_end` without the plan, and the crowding to 0.10 m.
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?
