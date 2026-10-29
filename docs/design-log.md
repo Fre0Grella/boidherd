@@ -1980,6 +1980,96 @@ setting that got there.
 The final sweep's question follows: does the hybrid's flock follow with
 more leaders, and how does each model's success grow with j at each n?
 
+## 2026-10-29 · The final sweep: drones × leaders
+
+`dead_end`, plan on, n = 10, 20, 30 × j = 0, 1, 2, 4 × seeds 0-9, the
+three models: 360 runs of 83 s (the n = 20, j = 2 runs are the ones
+above). Success = 90% in C within the limit, as before.
+
+| | j = 0 | j = 1 | j = 2 | j = 4 |
+|---|---|---|---|---|
+| hybrid, n = 10 | 0/10 | 10/10 | 5/10 | 9/10 |
+| n = 20 | 0/10 | 8/10 | 2/10 | 7/10 |
+| n = 30 | 0/10 | 5/10 | 2/10 | 3/10 |
+| Couzin, n = 10 | 0/10 | 5/10 | 7/10 | 9/10 |
+| n = 20 | 0/10 | 2/10 | 6/10 | 9/10 |
+| n = 30 | 0/10 | 0/10 | 3/10 | 10/10 |
+| Reynolds, n = 10 | 0/10 | 10/10 | 7/10 | 10/10 |
+| n = 20 | 0/10 | 8/10 | 8/10 | 9/10 |
+| n = 30 | 0/10 | 0/10 | 1/10 | 3/10 |
+
+Pooled over n, every leader count is 30 runs paired by (n, seed), exact
+McNemar as before; p uncorrected.
+
+- **No leaders, no arrival:** 0 of 90 runs with j = 0 reach C within
+  the limit. Every success above is the leaders' doing.
+- **Bigger flocks are harder** for every model: pooled over j > 0,
+  hybrid 24 → 17 → 10 of 30 from n = 10 to 30, Couzin 21 → 17 → 13,
+  Reynolds 27 → 25 → 4.
+- **Couzin's flock follows the more leaders it has**, as Couzin et al.
+  (2005) predict: 7 → 16 → 28 of 30 for j = 1, 2, 4 (j = 1 against 4:
+  22 seeds to 4, 1 the other way, p < 0.0001). At n = 30 it is the only
+  model that still gets there, 10/10 with 4 leaders. With one leader its
+  flock packs to touching distance (closest pair 0.10 m) and doesn't
+  follow; its 2 crashes are both at j = 2.
+- **Reynolds barely depends on j** (18, 16, 22 of 30, no pair
+  significant) but falls apart at n = 30: 4 of 30.
+- **The hybrid does worse with 2 leaders than with 1:** 23 → 9 → 19 of
+  30 for j = 1, 2, 4. j = 1 against 2: 14 seeds to j = 1, none the other
+  way, p = 0.0001. Its j = 1 failures are near misses (a median 12-15
+  drones in C at the limit); at j = 2 only 1 or 2 drones are, the
+  leaders.
+
+### Why two leaders lose the hybrid's flock
+
+A replay (n = 20, j = 2, seed 4: the hybrid fails, Reynolds succeeds,
+same spawn) shows it. The two leaders start on either side of the
+cup's axis (y = 10): each plans round its own arm, one round the
+bottom, one round the top. Their paths only part slowly, so at go time
+they both still head roughly east.
+
+- **The hybrid's followers** are at cruise speed within 2 s of go time
+  (0.99 m/s at 18 s), and they cruise along their neighbours' mean
+  heading. The two leaders' pulls up and down cancel out, so the
+  followers fly straight on, overtake both leaders (the followers'
+  centre is 1 m ahead at 24 s) and fill the cup. At its bottom they
+  turn back as one, carry the top leader with them (a leader mixes its
+  goal with the flock's heading, goal_weight 1), and the flock loops
+  round the room with it. The bottom leader reaches C alone.
+- **Reynolds' followers** speed up slowly (0.34 m/s at 18 s, 0.69 at
+  24 s): the leaders get ahead and apart before the flock commits, and
+  the flock goes with one of them, the top one, into C (19 of 20 by the
+  limit).
+
+This is Couzin et al.'s (2005) averaging: informed individuals with
+slightly different preferred directions lead the group along their
+mean, and only a wide enough difference makes it choose one. Here
+"slightly" is the start of two paths round opposite arms, and the
+mean is the dead end.
+
+Checked over all seeds: planning from each leader's spawn (A* is
+deterministic, and the leaders plan from where they are at go time, a
+metre or less from the spawn) says which arm it takes. With j = 2:
+
+| | leaders on the same arm (10 runs) | on opposite arms (20 runs) | Fisher exact p |
+|---|---|---|---|
+| hybrid | 7/10 | 2/20 | 0.002 |
+| Couzin | 7/10 | 9/20 | 0.26 |
+| Reynolds | 5/10 | 11/20 | 1.0 |
+
+Only the hybrid is broken by the split; the other two models choose a
+leader. At j = 4 the split doesn't do the same: the hybrid succeeds in
+1 of 3 runs with all leaders on one arm, 10 of 15 with a 3-1 split and
+8 of 12 with a 2-2 one. Not explained yet; a 2-2 replay would tell.
+
+The planning layer gives each leader its own plan and the leaders
+don't share them: whether they agree on an arm is left to where they
+spawned. **Kept as a finding** (Marco's call): the flock models differ
+in how they resolve conflicting leaders, which is a result, not a bug.
+Making the leaders agree (say, every leader planning from A's centre)
+would change the planning layer, rerun every j ≥ 2 cell (~4 h) and hide
+the effect; it goes in the report as future work.
+
 ## Open questions
 
 - Do followers recognise leaders (a flag in the IR packet) or not (Couzin)?
