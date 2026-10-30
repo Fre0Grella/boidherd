@@ -5,7 +5,8 @@
     uv run tools/analyse.py split         # do two leaders plan round the same arm?
     uv run tools/analyse.py trajectory logs/replays/dead_end_hybrid_plan_n20_j2_seed4.csv \
         --map dead_end -n 20 -j 2 --seed 4 --title "hybrid"
-    uv run tools/analyse.py all           # the first three
+    uv run tools/analyse.py maps          # the three experiment maps, with a spawn
+    uv run tools/analyse.py all           # all but trajectory
 
 A run succeeds when 90% of its drones are in C within its map's limit: the
 go time plus twice what the leaders alone need along their planned path,
@@ -53,7 +54,9 @@ COLOURS = {"hybrid": "#2b5fad", "couzin": "#d9a800", "reynolds": "#2e9e44"}
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="The report's analysis.", allow_abbrev=False)
-    parser.add_argument("what", choices=["evaluation", "sweep", "split", "trajectory", "all"])
+    parser.add_argument(
+        "what", choices=["evaluation", "sweep", "split", "trajectory", "maps", "all"]
+    )
     parser.add_argument("log", nargs="?", type=Path, help="trajectory: a referee log")
     parser.add_argument("--map", default="dead_end", help="trajectory: the run's map")
     parser.add_argument("-n", type=int, default=20)
@@ -69,6 +72,8 @@ def main() -> int:
         sweep(args.out)
     if args.what in ("split", "all"):
         split()
+    if args.what in ("maps", "all"):
+        maps(args.out)
     if args.what == "trajectory":
         if args.log is None:
             parser.error("trajectory needs a referee log")
@@ -334,6 +339,25 @@ def _side(p: Planner, start: tuple[float, float], goal: tuple[float, float]) -> 
         return ((bx - ax) * (q[1] - ay) - (by - ay) * (q[0] - ax)) / math.dist(start, goal)
 
     return 1 if offset(max(path, key=lambda q: abs(offset(q)))) > 0 else -1
+
+
+# --- the maps --------------------------------------------------------------------------
+
+
+def maps(out: Path) -> None:
+    """The tuning map and the two held-out ones, each with a 20-drone spawn (seed 0)."""
+    names = ["l_hall", "l_turn", "dead_end"]
+    fig, axes = plt.subplots(1, 3, figsize=(10, 3.2), width_ratios=[1, 1, 1.6])
+    for ax, name in zip(axes, names, strict=True):
+        c = course(name)
+        draw_course(ax, c)
+        swarm = place_swarm(c, n=20, j=2, seed=0)
+        for leader, colour, marker, size in ((False, FOLLOWER, "o", 6), (True, LEADER, "*", 40)):
+            xy = [d.xy for d in swarm if d.leader == leader]
+            ax.scatter([p[0] for p in xy], [p[1] for p in xy], s=size, c=colour, marker=marker)
+        ax.set_title(name)
+    axes[0].legend(loc="upper left", fontsize="x-small", framealpha=0.9)
+    _save(fig, out / "maps.pdf")
 
 
 # --- one run from above --------------------------------------------------------------
