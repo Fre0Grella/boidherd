@@ -1,0 +1,64 @@
+\section{Results}
+\label{sec:results}
+
+% Numbers from tools/analyse.py (evaluation, sweep, split); design log
+% 2026-10-28 and 2026-10-29.
+
+\subsection{Held-out evaluation: model and plan}
+% Table: success per model, plan off/on, dead_end and l_turn, + per seed.
+% Findings: the plan matters most for Reynolds; with the plan the order on
+% dead_end reverses (Reynolds 8, Couzin 6, hybrid 2 of 10); l_turn at the
+% ceiling; Couzin the only model that crashes.
+\todo{Evaluation table and findings.}
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=\linewidth]{evaluation_closest}
+  \caption{The closest two drones came in each run, held-out maps, 20 drones,
+    2 leaders, 10 seeds. Dotted: the 0.3\,m stopping limit.}
+  \label{fig:evaluation-closest}
+\end{figure}
+
+\subsection{Drones and leaders}
+% Heatmaps; H1 (j = 0: 0 of 90), H2 per model (Couzin yes, Reynolds flat,
+% hybrid worse at j = 2), larger flocks harder for all.
+\todo{Sweep findings.}
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=\linewidth]{sweep_success}
+  \caption{dead\_end with the plan: runs out of 10 seeds in which 90\% of
+    the drones reached C within 83\,s, by flock size and leaders.}
+  \label{fig:sweep-success}
+\end{figure}
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics[width=\linewidth]{sweep_cost}
+  \caption{dead\_end with the plan, pooled over flock sizes: time to 90\% in C
+    (successful runs) and the closest two drones came (all runs).}
+  \label{fig:sweep-cost}
+\end{figure}
+
+\subsection{Why two leaders lose the hybrid's flock}
+% The mechanism: two leaders plan round opposite arms; the hybrid's
+% followers reach cruise speed at once and fly the mean heading into the
+% cup; Reynolds' followers lag, then pick a leader. Couzin 2005's
+% averaging. Fisher table: hybrid 7/10 together vs 2/20 apart (p = 0.002).
+% Video: the two runs side by side.
+\todo{Mechanism, split table, video.}
+
+\begin{figure}[tbp]
+  \centering
+  \begin{subfigure}{\linewidth}
+    \includegraphics[width=\linewidth]{trajectory_dead_end_hybrid_plan_n20_j2_seed4}
+    \caption{Hybrid: the followers fly between the leaders into the cup.}
+  \end{subfigure}
+  \begin{subfigure}{\linewidth}
+    \includegraphics[width=\linewidth]{trajectory_dead_end_reynolds_plan_n20_j2_seed4}
+    \caption{Reynolds: the followers go with one leader.}
+  \end{subfigure}
+  \caption{The same spawn (seed 4, 20 drones, 2 leaders) with two models.
+    Solid: the followers' centre, numbered every 10\,s; dashed: the leaders.}
+  \label{fig:split}
+\end{figure}

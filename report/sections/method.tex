@@ -1,0 +1,39 @@
+\section{Experimental method}
+\label{sec:method}
+
+% Slides 1.3 and 2.9: define objectives and hypotheses, the setting, the
+% measure, then analyse with statistics and plots.
+
+\subsection{Setting}
+% Maps: tuned on l_hall, evaluated on dead_end and l_turn, which no model
+% was tuned on (avoids the tuning-map confound). Seeds 0-9: each seed is
+% one spawn, shared by every model and setting, so runs pair by seed.
+% Two experiments: (1) the evaluation, n = 20, j = 2, model x plan on both
+% held-out maps; (2) the sweep, dead_end with the plan, n x j x model.
+\todo{Maps, seeds, the two experiments.}
+
+\subsection{Measure}
+% Success: 90% of the drones in C within the limit, go time + twice the
+% leaders' own time along their planned path (83 s on dead_end, 112 s on
+% l_turn). Why a limit: a flock that lost its leaders wanders into C by
+% chance given time (false positives, design log 2026-10-28). Why twice:
+% larger flocks pass gaps slower. Also logged: time to 90%, the closest
+% two drones came, crashes.
+\todo{Success within the limit; secondary measures.}
+
+\subsection{Statistics}
+% Paired by seed. Success is binary: exact McNemar test (binomial on the
+% discordant seeds). Closest pair: Wilcoxon signed-rank. Leader split:
+% Fisher's exact test. Uncorrected p, many comparisons: read as evidence,
+% not proof. With 10 seeds the smallest McNemar p is 0.002.
+\todo{Tests and their limits.}
+
+\subsection{Traps, and how they were handled}
+% Nehmzow's traps (slides 1.3):
+%   confounds -> held-out maps; models tuned by the same protocol;
+%   floor/ceiling -> l_turn is at the ceiling, dead_end separates; the
+%     j = 0 control fixes the floor;
+%   systematic errors -> identical spawns per seed across models;
+%   wishful thinking -> hypotheses before the sweep, the limit kept when
+%     it cost results ("Too hard a limit? Checked, kept").
+\todo{Traps.}

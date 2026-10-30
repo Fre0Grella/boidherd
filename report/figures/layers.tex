@@ -1,0 +1,30 @@
+% The controller's layers, one step (report/sections/system.tex).
+\begin{tikzpicture}[
+    node distance=4mm and 6mm,
+    layer/.style={draw, rounded corners=2pt, minimum height=8mm, minimum width=26mm,
+                  align=center, font=\small, fill=#1},
+    layer/.default=white,
+    input/.style={align=center, font=\footnotesize},
+    flow/.style={-{Stealth[length=2mm]}, thick},
+  ]
+  \node[layer=blue!8] (sense) {sensing\\[-1pt]\scriptsize IR, GPS, map};
+  \node[layer=blue!8, right=of sense] (mission) {mission\\[-1pt]\scriptsize go?\ in C?};
+  \node[layer=orange!15, right=of mission] (model) {flocking model\\[-1pt]
+                                                   \scriptsize hybrid / Couzin / Reynolds};
+  \node[layer=blue!8, right=of model] (limit) {stopping limit};
+  \node[layer=blue!8, below=of limit] (velocity) {velocity layer\\[-1pt]
+                                                  \scriptsize $(\mathbf v_d-\mathbf v)/\tau$};
+  \node[layer=blue!8, left=of velocity] (attitude) {attitude and\\[-1pt]altitude PIDs};
+  \node[layer=gray!15, left=of attitude] (motors) {motors};
+  \node[layer=red!10, dashed, above=of model] (route) {route (leaders)\\[-1pt]
+                                                      \scriptsize plan, pursue, replan};
+
+  \draw[flow] (sense) -- (mission);
+  \draw[flow] (mission) -- (model);
+  \draw[flow] (model) -- node[above, font=\scriptsize] {$\mathbf v_d$} (limit);
+  \draw[flow] (limit) -- (velocity);
+  \draw[flow] (velocity) -- node[above, font=\scriptsize] {$\mathbf a$} (attitude);
+  \draw[flow] (attitude) -- (motors);
+  \draw[flow, dashed] (route) -- node[right, font=\scriptsize] {direction to go} (model);
+  \draw[flow, dashed] (sense.north) |- (route.west);
+\end{tikzpicture}

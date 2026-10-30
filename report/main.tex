@@ -1,0 +1,70 @@
+% boidherd: the project report for Intelligent Robotic Systems.
+% Build: tectonic main.tex  (from this folder; figures come from tools/analyse.py)
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{fontspec}             % Tectonic is XeLaTeX
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs,array}
+\usepackage{subcaption}
+\usepackage{xcolor}
+\usepackage[round,authoryear]{natbib}
+\usepackage{qrcode}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta}
+\usepackage[hidelinks]{hyperref}
+\usepackage[nameinlink]{cleveref}
+
+\graphicspath{{figures/}}
+
+% A video in a PDF won't play in most viewers: a still frame that links to it,
+% with a QR code for the printed page.
+% \videofigure{frame image}{url}{caption}{label}
+\newcommand{\videofigure}[4]{%
+  \begin{figure}[tbp]
+    \centering
+    \begin{minipage}[c]{0.78\linewidth}
+      \href{#2}{\includegraphics[width=\linewidth]{#1}}
+    \end{minipage}\hfill
+    \begin{minipage}[c]{0.18\linewidth}
+      \centering\qrcode[height=2.2cm]{#2}
+    \end{minipage}
+    \caption{#3 Video: \url{#2}}
+    \label{#4}
+  \end{figure}}
+
+% Notes to self while drafting; empty this to hide them.
+\newcommand{\todo}[1]{\textcolor{red}{[#1]}}
+
+\title{Leading a drone flock past a dead end:\\
+  three flocking models and a planning layer for informed leaders}
+\author{Marco Galeri\\
+  \small Intelligent Robotic Systems, Alma Mater Studiorum -- Università di Bologna}
+\date{\todo{submission date}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+  \todo{Write last: task, the three models, the planning layer, the method
+  (held-out maps, paired seeds), the main findings in one line each.}
+\end{abstract}
+
+\input{sections/introduction}
+\input{sections/background}
+\input{sections/system}
+\input{sections/controllers}
+\input{sections/method}
+\input{sections/results}
+\input{sections/discussion}
+\input{sections/conclusion}
+
+\nocite{*}  % while drafting: list every source; remove once the text cites them
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\appendix
+\input{sections/appendix}
+
+\end{document}

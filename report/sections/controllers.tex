@@ -1,0 +1,34 @@
+\section{Controllers}
+\label{sec:controllers}
+
+\subsection{Flight}
+\label{sec:flight}
+% Velocity layer and nested attitude PIDs; the robot is not the ideal boid
+% (Virágh 2014): relaxation time, max acceleration, tilt. Design log
+% 2026-10-20 "Reynolds rules on the drones", phase 1.
+\todo{Flight layer.}
+
+\subsection{Three flocking models}
+\label{sec:models}
+% The equations, briefly, each with its parameters.
+%   Reynolds (1987): separation, alignment, cohesion; leaders add a goal.
+%   Couzin (2002, 2005): zones; leaders mix the goal direction with weight
+%   omega.
+%   Hybrid: Vásárhelyi's repulsion, friction alignment and walls, plus
+%   cohesion and a Couzin-style goal for leaders (phase 3).
+% Shared: the stopping limit (never closer than stop_drone / stop_wall),
+% walls from the map.
+% Tuning: hybrid over phase 3, Couzin and Reynolds by a grid on l_hall
+% (design log 2026-10-27).
+\todo{Reynolds, Couzin, hybrid; tuning.}
+
+\subsection{The leaders' planning layer}
+\label{sec:planner}
+% Motivated by failures: a leader steering straight at C leads the flock
+% into the dead end. A* on a 0.25 m grid with a clearance cost, small
+% obstacles left to the drones; path pruning; pure pursuit with a 2 m
+% lookahead; replanning when the flock pushes a leader behind a wall
+% (line of sight lost). Design log 2026-10-27 "Phase 5: the plan" and
+% 2026-10-28 "Leaders plan again".
+% Video: plan off vs plan on, and a replan, on dead_end.
+\todo{Planner, pursuit, replanning; videos.}

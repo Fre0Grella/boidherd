@@ -10,6 +10,9 @@ worlds/
 # Experiment output
 logs/
 
+# Built by tectonic from report/main.tex
+report/main.pdf
+
 # Written by make_world.py with this machine's absolute venv path
 controllers/*/runtime.ini
 
