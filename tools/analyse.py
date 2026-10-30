@@ -345,12 +345,17 @@ def _side(p: Planner, start: tuple[float, float], goal: tuple[float, float]) -> 
 
 
 def maps(out: Path) -> None:
-    """The tuning map and the two held-out ones, each with a 20-drone spawn (seed 0)."""
+    """The tuning map and the two held-out ones, each with a 20-drone spawn (seed 0) and
+    the path planned from A's centre to C's (the one the time limit is measured on)."""
     names = ["l_hall", "l_turn", "dead_end"]
     fig, axes = plt.subplots(1, 3, figsize=(10, 3.2), width_ratios=[1, 1, 1.6])
     for ax, name in zip(axes, names, strict=True):
         c = course(name)
         draw_course(ax, c)
+        path = planner(c).plan(centre(c.sector_a.area), centre(c.sector_c.area))
+        assert path is not None
+        ax.plot([q[0] for q in path], [q[1] for q in path], color="black", linewidth=1,
+                linestyle="--", label="planned path")  # fmt: skip
         swarm = place_swarm(c, n=20, j=2, seed=0)
         for leader, colour, marker, size in ((False, FOLLOWER, "o", 6), (True, LEADER, "*", 40)):
             xy = [d.xy for d in swarm if d.leader == leader]
