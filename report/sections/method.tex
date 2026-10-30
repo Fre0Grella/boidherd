@@ -1,39 +1,143 @@
 \section{Experimental method}
 \label{sec:method}
 
-% Slides 1.3 and 2.9: define objectives and hypotheses, the setting, the
-% measure, then analyse with statistics and plots.
+The experiments follow the steps of \citet{nehmzow2009} and the course's
+guidelines: state the hypotheses, fix the setting and the measure, then
+analyse with statistics and plots. Each hypothesis below was written in the
+design log before the runs that test it, with the date.
+
+\subsection{Hypotheses}
+\label{sec:hypotheses}
+
+\begin{description}
+  \item[H1, planning (15 Oct).] Where the straight line from A to C crosses a
+    wall, leaders that plan bring their flock to C more often than leaders
+    that steer straight at C; where it doesn't, the plan makes no difference.
+  \item[H2, the corner trap (27 Oct).] No weights bring Reynolds' flock round
+    the L's inner corner with the plan off, since the corner is a local
+    minimum of steering straight at the goal; with the plan, it gets round.
+  \item[H3, tuned Couzin (27 Oct).] Tuned on the same terms as the hybrid,
+    Couzin's model reaches C about as often, and keeps wider spacing.
+  \item[H4, leaders (14 Oct; for the sweep, 28 Oct).] The research question,
+    from \citet{couzin2005}: more leaders bring the flock more reliably, and a
+    larger flock needs a smaller fraction of leaders. Before the sweep: does
+    each model's success grow with $j$ at every $n$?
+\end{description}
+A control comes with H4: with no leaders ($j = 0$), a flock can only reach
+C by wandering, and how often it does within the time limit is the chance
+level against which every success is read.
 
 \subsection{Setting}
-% Maps: tuned on l_hall, evaluated on dead_end and l_turn, which no model
-% was tuned on (avoids the tuning-map confound). Seeds 0-9: each seed is
-% one spawn, shared by every model and setting, so runs pair by seed.
-% Two experiments: (1) the evaluation, n = 20, j = 2, model x plan on both
-% held-out maps; (2) the sweep, dead_end with the plan, n x j x model.
-\todo{Maps, seeds, the two experiments.}
+\label{sec:setting}
+
+\paragraph{Maps.} All three models were tuned on \texttt{l\_hall}, so results
+there would say how well each model fits the map it was tuned on. The
+experiments run on the two maps no model was tuned on (\cref{fig:maps}):
+\texttt{l\_turn}, where the straight line to C runs into the hall's wall at
+the corner, and \texttt{dead\_end}, where it runs into the bottom of the cup.
+
+\paragraph{Seeds.} A seed fixes where the drones start and which of them lead.
+Every model and setting runs on the same seeds, 0 to 9, so runs pair by seed:
+two models compared on seed 3 start from the same spawn, with the same
+leaders. Tuning used seeds 100 and 101, so tuning and evaluation never share
+a spawn. Webots runs are deterministic: a run replayed gives the same result
+to the millisecond, so any failure can be replayed and watched.
+
+\paragraph{Two experiments.}
+\begin{enumerate}
+  \item \emph{Evaluation} (H1--H3): 20 drones, 2 leaders, the three models
+        on both maps with the plan off and on, 10 seeds: 120 runs.
+  \item \emph{Drones and leaders} (H4): \texttt{dead\_end} with the plan on,
+        $n \in \{10, 20, 30\}$, $j \in \{0, 1, 2, 4\}$, the three models, 10
+        seeds: 360 runs, 30 of them the evaluation's own (20 drones, 2
+        leaders, plan on). \texttt{dead\_end} was chosen because the
+        evaluation showed it separates the models and \texttt{l\_turn} does
+        not (\cref{sec:results}).
+\end{enumerate}
+All runs fly at 1\,m/s and one altitude; the leaders set off at 16\,s.
 
 \subsection{Measure}
-% Success: 90% of the drones in C within the limit, go time + twice the
-% leaders' own time along their planned path (83 s on dead_end, 112 s on
-% l_turn). Why a limit: a flock that lost its leaders wanders into C by
-% chance given time (false positives, design log 2026-10-28). Why twice:
-% larger flocks pass gaps slower. Also logged: time to 90%, the closest
-% two drones came, crashes.
-\todo{Success within the limit; secondary measures.}
+\label{sec:measure}
+
+\paragraph{Success.} A run succeeds when 90\% of its drones are in C at once,
+within the map's time limit. 90\% and not all: a single drone cut off at a
+corner would otherwise fail a run in which the leaders brought the flock.
+
+\paragraph{The time limit.} The first evaluation ran for 200\,s, and replays
+showed that this let a flock that had lost its leaders wander into C by
+chance: \texttt{dead\_end}'s room is closed, and C fills its far end. Those
+runs counted as successes of leadership they weren't. Each run now ends at
+the time a guided flock needs: the go time plus twice the time the leaders
+alone would take along their planned path at the cruise speed,
+\begin{equation}
+  T = t_{\mathrm{go}} + 2\,L/v_0,
+\end{equation}
+which gives 83\,s on \texttt{dead\_end} ($L = 33.4$\,m) and 112\,s on
+\texttt{l\_turn} ($L = 47.9$\,m). Twice and not a fixed margin, because
+larger flocks take longer through a narrow passage, and a tight limit would
+bias the results against large $n$. On the first evaluation the limit fell
+between the two groups: guided arrivals on \texttt{dead\_end} took 47--63\,s,
+the wanderers 108--148\,s. A tighter limit can still be applied afterwards,
+from each run's time to 90\%.
+
+\paragraph{Secondary measures.} The time to 90\% in C, for the runs that
+succeed; the closest two drones came during the run, centre to centre
+(a Crazyflie is 10\,cm across, so 0.10\,m is touching); crashes, a drone
+that falls to the floor; and the drones in C at the limit, which tells a
+near miss from a flock that never followed.
 
 \subsection{Statistics}
-% Paired by seed. Success is binary: exact McNemar test (binomial on the
-% discordant seeds). Closest pair: Wilcoxon signed-rank. Leader split:
-% Fisher's exact test. Uncorrected p, many comparisons: read as evidence,
-% not proof. With 10 seeds the smallest McNemar p is 0.002.
-\todo{Tests and their limits.}
+\label{sec:statistics}
+
+Success is binary and runs are paired by seed, so two settings are compared
+with the exact McNemar test \citep{mcnemar1947}: only the seeds where one
+setting succeeds and the other fails count, and under the null hypothesis
+each is equally likely to go either way (a two-sided binomial test on those
+seeds). With 10 seeds the smallest possible $p$ is 0.002, when all 10 differ
+the same way. In the second experiment comparisons are also pooled over the
+three flock sizes, 30 pairs. Continuous measures, such as the closest pair,
+are shown as boxplots with every run drawn, and paired with the Wilcoxon
+signed-rank test \citep{wilcoxon1945}, which assumes no distribution: results
+of robot runs are rarely normal, and ten are too few to tell. Groups that are
+not paired by seed, such as runs whose leaders took the same or different
+ways, are compared with Fisher's exact test.
+
+The $p$ values are not corrected for the number of comparisons, which is
+large. They are read as the strength of the evidence, together with the
+counts they come from: 6 seeds to none ($p = 0.03$) is reported as such, an
+indication, not as ``significant''. The strongest results have $p$ of 0.002
+or less, small enough to survive a correction over every comparison in their
+experiment.
 
 \subsection{Traps, and how they were handled}
-% Nehmzow's traps (slides 1.3):
-%   confounds -> held-out maps; models tuned by the same protocol;
-%   floor/ceiling -> l_turn is at the ceiling, dead_end separates; the
-%     j = 0 control fixes the floor;
-%   systematic errors -> identical spawns per seed across models;
-%   wishful thinking -> hypotheses before the sweep, the limit kept when
-%     it cost results ("Too hard a limit? Checked, kept").
-\todo{Traps.}
+\label{sec:traps}
+
+\citet{nehmzow2009} lists the traps of experiments with robots. Each met this
+project at least once:
+\begin{description}
+  \item[Confounding effects.] The first comparison of the models was run on
+    the map the hybrid had been tuned on, against two models taken as
+    published: it measured the tuning as much as the models. The others were
+    then tuned on the same map, by one protocol fixed in advance (\cref{sec:models}),
+    and the comparison moved to held-out maps. A residual confound remains:
+    the hybrid had a whole development phase of tuning, the others 15 runs
+    each. Earlier, the first sweep mixed flock size with starting density,
+    since A had a fixed size; the spawn now places every flock at the same
+    density.
+  \item[Floor and ceiling effects.] On \texttt{l\_turn} two models succeed in
+    every run with the plan: the map can't rank them. \texttt{dead\_end}
+    separates them, so the second experiment runs there. The $j = 0$
+    control measures the floor.
+  \item[Systematic errors.] Every model and setting shares the same spawns,
+    the same robot (one flight layer, one $\tau$ and $a_{\max}$) and the same
+    measures, computed by one script from the referee's ground truth.
+  \item[Wishful thinking.] Hypotheses were written before the runs, and results
+    against them were kept: a retune that was expected to help Couzin and
+    didn't, and a time limit that cost the hybrid most of its successes on
+    \texttt{dead\_end}. That limit was questioned as too hard and checked
+    rather than loosened: at the limit only the hybrid's leaders were in C,
+    its followers 15--23\,m behind and out of perception, lost rather than
+    slow. A failure was explained by replaying it before anything changed in
+    the code, and a fix that changed what a model is, such as making Couzin's
+    leaders wait for their flock, was turned down.
+\end{description}

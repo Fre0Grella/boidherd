@@ -1,13 +1,30 @@
 \section{Running the project}
 \label{app:running}
 
-% Install (uv), make a world, open it in Webots, run a sweep, run the
-% analysis, build this report. Commands from the README.
-\todo{How to run.}
+The code, the maps, the design log and this report are in one repository.
+It needs Webots R2025a and \texttt{uv}, which installs Python and every
+package at the versions in the lock file. On Windows, start Webots and the
+tools from PowerShell.
+
+{\small
+\begin{verbatim}
+uv sync                                  # the environment
+uv run make_world.py dead_end -n 20 -j 2 -s 4
+                     # a world (map, drones, leaders, seed): open
+                     # worlds/dead_end.wbt in Webots
+uv run tools/sweep.py --map dead_end -n 10 20 30 -j 0 1 2 4 \
+    --seeds 0 1 2 3 4 5 6 7 8 9 --duration 83 --model hybrid --plan 1
+uv run tools/analyse.py all              # every number and figure
+uv run pytest                            # the tests
+cd report; tectonic main.tex             # this report
+\end{verbatim}}
+
+Any setting of any layer can be changed for one run by its name, for example
+\texttt{-{}-model couzin -{}-velocity 0.5 -{}-plan 1}. The design log,
+\texttt{docs/design-log.md}, records every decision with its reason and the
+alternatives turned down.
 
 \section{Videos}
 \label{app:videos}
 
-% The list of videos with links, in case the figures' links are not
-% clickable in the reader's viewer.
-\todo{Video list.}
+\todo{List of the videos with their links, once recorded.}

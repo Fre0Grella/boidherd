@@ -1,15 +1,163 @@
 \section{Discussion}
 \label{sec:discussion}
 
-% What the results say about H1-H4; what a "better" model means here
-% (reliability vs spacing: Reynolds keeps 0.5 m, the hybrid and Couzin
-% touch); the leaders' planning works only if the flock follows, and how a
-% model follows conflicting leaders decides it.
-\todo{Hypotheses revisited.}
+\subsection{The hypotheses}
+\label{sec:verdicts}
+
+\begin{table}[tbp]
+  \centering
+  \small
+  \begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.2\linewidth}
+                     >{\raggedright\arraybackslash}p{0.17\linewidth}
+                     >{\raggedright\arraybackslash}p{0.55\linewidth}@{}}
+    \toprule
+    Hypothesis & Verdict & Evidence \\
+    \midrule
+    H1, planning & holds for Reynolds &
+      Reynolds 0 $\to$ 8 and 0 $\to$ 10 of 10; hybrid and Couzin within 4
+      seeds. The ``no effect where the way is clear'' half was not tested. \\
+    \addlinespace
+    H2, the corner trap & holds &
+      Reynolds never got round with the plan off, in tuning or evaluation;
+      with the plan, 10 of 10 on \texttt{l\_turn}. \\
+    \addlinespace
+    H3, tuned Couzin & half &
+      Reaches C as often as the hybrid; its drones touch as the hybrid's do,
+      and it is the only model that crashed. \\
+    \addlinespace
+    H4, leaders & Couzin only &
+      Couzin 7, 16, 28 of 30 for 1, 2, 4 leaders; Reynolds flat; the hybrid
+      worst with 2. \\
+    \bottomrule
+  \end{tabular}
+  \caption{The hypotheses of \cref{sec:hypotheses} against the results.}
+  \label{tab:verdicts}
+\end{table}
+
+\Cref{tab:verdicts} closes the loop. Two hypotheses hold, one half holds,
+and the research question of the project, H4, holds for one model out of
+three. The rest of this section argues that these are not three separate
+outcomes but one.
+
+\subsection{What drives a follower}
+\label{sec:drive}
+
+The three models differ in many terms, but one difference explains most of
+the results: what makes a follower move.
+
+\begin{description}
+  \item[Hybrid: its own cruise.] A follower cruises at full speed along its
+    neighbours' mean heading. The flock therefore has momentum. On
+    \texttt{l\_turn} that momentum carries the leaders round the corner even
+    with no plan, where Reynolds' leaders stop (10 of 10 against none). On
+    \texttt{dead\_end} the same momentum is the problem: two leaders heading
+    round opposite arms of the cup pull the mean heading two ways, the pulls
+    cancel, and the flock cruises on between them, into the cup. The flock is
+    quick to follow a heading, and so it follows the average one.
+  \item[Reynolds: nothing but its neighbours.] A follower has no drive of its
+    own; it moves only as its neighbours pull it. With leaders that steer
+    straight at C, that is useless: the leaders stop at a wall and the flock
+    stops with them. With leaders that follow a plan, it is faithful: the
+    flock speeds up slowly, the leaders get ahead before it commits, and when
+    two leaders disagree the flock goes with one of them. Reynolds' success
+    hardly depends on the number of leaders, presumably because one leader
+    pulling is enough for a flock that has nothing pulling it the other way.
+  \item[Couzin: a direction to be outvoted.] A follower keeps a direction as
+    its own state and turns it toward its neighbours'. Leaders have to outvote
+    the flock, so more leaders work better, exactly as
+    \citet{couzin2005} predicted; one leader among 30 is lost. And since a
+    Couzin leader feels its flock only while it still sees it, a leader that
+    gets ahead can leave the flock behind for good.
+\end{description}
+
+So no model is simply best. Each one's strength and its weakness come from the
+same property. Momentum makes the hybrid robust to leaders that steer badly
+and fragile to leaders that disagree; having no drive makes Reynolds' flock
+useless without a plan and faithful with one; state makes Couzin's flock
+need enough leaders and lets its leaders run away. Which model to choose
+depends on what the leaders can be trusted to do.
+
+\subsection{A plan helps only if the flock follows}
+\label{sec:plan-and-flock}
+
+The planning layer was designed for the leaders alone, and on that level it
+works: in the replays, no leader stayed stuck in the cup once it could plan
+again. But a better path for the leaders helps only as far as the flock
+follows them, and the model decides that. The leaders also plan
+independently, as if they were interchangeable: each from where it stands,
+each for itself. This was expected to split the flock at worst, each part with
+a leader. For a model that averages its leaders, two independent plans are
+worse than one: the hybrid succeeds in 7 of 10 runs whose leaders happen to
+choose the same side, and in 2 of 20 whose leaders don't.
+
+The deliberative layer is therefore missing a part. A hybrid architecture
+plans for the system it controls, and here the system is the flock, not
+the leader. Leaders that agree on one path, or that plan with the flock's
+response in mind, are the natural next step (\cref{sec:conclusion}). Without
+being recognised, they could still agree: they share the map and the goal,
+so a rule as simple as every leader planning from the same point, such as
+A's centre if the map gave it to them, would give one path.
+
+\subsection{Reliability against safety}
+\label{sec:safety}
+
+Reynolds with the plan is the most reliable model on \texttt{dead\_end} with 20
+drones and 2 leaders, and it keeps its drones about 0.5\,m apart, never closer than
+0.33\,m. The hybrid and Couzin reach touching distance, 0.10\,m, in many runs,
+and Couzin crashed in 4 runs of 40. In simulation that costs little; on real
+drones it would matter more. Webots does not simulate propeller downwash, which
+makes a drone flying over another unstable, and real IR distances are noisier
+than Webots' (1.4\,cm here). The stopping limit kept every drone off the
+walls but did not keep them apart in a crowd: it is one-sided, each drone
+limits only itself, and the flight layer follows it a time constant late.
+\citet{soria2021} reach a similar conclusion about reactive swarm models in
+clutter: they don't guarantee safe flight, which is why they replaced them
+with model predictive control. For a real flock the spacing would weigh as
+much as the success rate.
+
+\subsection{Back to the literature}
+\label{sec:literature}
+
+\begin{itemize}
+  \item \citet{couzin2005} found that a group with two informed subgroups
+        follows their average when the two preferred directions differ
+        little, and picks one when they differ a lot. The hybrid shows the
+        first behaviour on drones, at the start of two paths that part slowly;
+        Reynolds' flock, which commits later, shows the second.
+  \item Larger flocks needed more leaders in every model. That is consistent
+        with Couzin's result, which is about the \emph{fraction} of leaders:
+        it falls for larger groups, but not as fast as $1/n$, so the number
+        of leaders needed still grows.
+  \item \citet{vasarhelyi2018}'s model was built for flocks that stay inside
+        an arena with no goal: there, walls that push the flock back are the
+        point. For a flock that has to get somewhere, through a forest and a
+        gap, the push became a bounce, and the stopping limit replaced it.
+  \item \citet{viragh2014} described the robot by its imperfections; the
+        first flight of Reynolds' rules failed exactly as they warn, and the
+        fix was to make the robot follow, not to change the rules.
+\end{itemize}
 
 \subsection{Limitations}
-% 10 seeds per cell, many uncorrected comparisons; one trap map; 2D only;
-% simulated sensing (IR, GPS) without noise models; leaders plan
-% independently; the split analysis plans from the spawn as a proxy for
-% the go-time position.
-\todo{Limitations.}
+\label{sec:limitations}
+
+\begin{itemize}
+  \item \emph{Few seeds, many tests.} Ten seeds per setting resolve large
+        effects only, and the $p$ values are uncorrected. Effects of 2--4
+        seeds, such as the plan for the hybrid and Couzin, are not resolved
+        either way.
+  \item \emph{One trap map.} The second experiment ran on \texttt{dead\_end}
+        only, and \texttt{l\_turn} sits at the ceiling. The leader-split
+        mechanism depends on a symmetric obstacle with two ways round; another
+        trap might rank the models differently.
+  \item \emph{Unequal tuning.} The hybrid was tuned over a whole development
+        phase, Couzin and Reynolds with 15 runs each. The held-out maps limit
+        the damage but don't remove it.
+  \item \emph{Simulation.} Flat flight only, idealised sensing (IR without
+        noise or occlusion beyond Webots' own, obstacles known from the map),
+        and no downwash.
+  \item \emph{The split analysis} infers each leader's way round from a plan
+        made at its spawn, a stand-in for the plan it made at go time; the
+        replays agree with it, but it was not logged for every run. Why an
+        even 2--2 split with 4 leaders does not break the hybrid is not
+        explained.
+\end{itemize}

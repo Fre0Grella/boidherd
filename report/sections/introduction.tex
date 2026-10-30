@@ -1,25 +1,43 @@
 \section{Introduction}
 \label{sec:introduction}
 
-% The task, in a paragraph: n Crazyflie drones flock from sector A to sector C
-% of a known map; only j of them (the informed leaders) know where C is, and
-% nothing marks them to the others (Couzin 2005). Design log: 2026-10-14
-% "Research question".
-\todo{The task.}
+A flock of $n$ drones takes off in sector A of a known course and has to
+reach sector C. Only $j$ of the drones, the leaders, know where C is, and
+nothing tells the others which drones those are: there is no leader flag and
+no signal, only neighbours flying close by. Can the leaders bring the whole
+flock to C, and what does that depend on?
 
-% Why it is interesting: leadership without recognition in a flock; a
-% reactive swarm meets obstacles a reactive leader can't solve (a dead end).
+This is the question \citet{couzin2005} asked of animal groups, put to a swarm
+of simulated quadrotors. It joins three things that are usually studied apart.
+The first is the flocking model: the rules that tell a drone how to move from
+what it senses of its neighbours, here three of them, from computer animation
+\citep{reynolds1987}, from biology \citep{couzin2002,couzin2005} and from
+real drone swarms \citep{vasarhelyi2018}. The second is the robot: a
+Crazyflie in Webots, with the inertia, response time and limited thrust that
+an ideal boid doesn't have. The third is the leaders' control: a leader that
+steers straight at C leads its flock into any wall in the way, so the leaders
+get a deliberative layer, a planner that finds a path on the map, while the
+followers stay purely reactive.
 
-% The questions, as stated hypotheses (slides 1.3: state them before the
-% experiments). Draft:
-%   H1  Without leaders no flock reaches C within the time a guided flock
-%       needs (the j = 0 control).
-%   H2  More leaders bring the flock more reliably (Couzin et al. 2005).
-%   H3  A planning layer for the leaders is needed where steering straight
-%       at C leads into a dead end.
-%   H4  The three flocking models differ in how well their followers follow.
-\todo{Hypotheses H1--H4.}
+The project compares the three models on the same robot, with the same
+leaders, on maps none of them was tuned on, with the leaders' planner off and
+on, and then over the number of drones and of leaders: 450 runs in all, paired
+by starting position and analysed with exact tests. The hypotheses were
+written down before each experiment (\cref{sec:hypotheses}).
 
-% What the project contributes, and the report's structure (one line per
-% section).
-\todo{Contributions and outline.}
+The main findings are these. A planner is what lets a flock that follows its
+leaders faithfully, Reynolds', get past a corner or a dead end at all. More
+leaders help as Couzin predicted for Couzin's model only. And with two leaders
+that plan their ways independently, the model built for real drones fails
+where the simplest model succeeds: its flock follows the average of two paths
+round an obstacle, straight into it, as Couzin's informed groups do when their
+preferences differ little. Which model works best depends on what drives a
+follower, and on whether the leaders agree.
+
+\Cref{sec:background} summarises the state of the art. \Cref{sec:system}
+gives an overview of the system and the choices behind it, and
+\cref{sec:controllers} the flight layer, the three models and the planner.
+\Cref{sec:method} sets out the hypotheses and the experimental method,
+\cref{sec:results} the results and \cref{sec:discussion} what they mean.
+\Cref{sec:conclusion} concludes, and the appendix explains how to run the
+project and lists the videos.

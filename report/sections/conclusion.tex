@@ -1,9 +1,41 @@
 \section{Conclusion and future work}
 \label{sec:conclusion}
 
-\todo{Conclusion: answers to the questions in three or four sentences.}
+A few unrecognised leaders can bring a flock of drones past an obstacle course
+to a goal only they know, but how reliably depends on the flocking model more
+than on anything else this project varied. A leader that steers straight at the
+goal leads its flock into the first wall in the way; a leader that plans a path
+gets round it, and brings the flock along if the flock's rules let it follow.
+Reynolds' flock, with no drive of its own, follows a planning leader
+faithfully; Couzin's follows when there are enough leaders to outvote it; the
+hybrid, built from a model for real drones, follows a single leader well and
+two disagreeing ones into the dead end, averaging their paths. No flock reached
+the goal without leaders.
 
-% Future work: 3D flight (phase 4); leaders that agree on a plan (all plan
-% from A's centre, or share a plan); leaders the followers recognise;
-% sensing obstacles instead of knowing the map; real Crazyflies.
-\todo{Future work.}
+On the way, the project showed that a flocking model is not a controller until
+the robot can follow it: the rules that are stable for an ideal boid
+oscillated on the drone until its attitude control was rebuilt, and every
+model now flies through the same velocity layer, described by two measured
+numbers.
+
+\paragraph{Future work.}
+\begin{itemize}
+  \item \emph{Leaders that agree.} Every leader planning from the same point,
+        or sharing one plan, would remove the split that breaks the hybrid,
+        and would test whether the averaging is the whole story.
+  \item \emph{Planning for the flock.} A leader that watches whether it is
+        followed, and waits or replans when it is not, would close the loop
+        the planning layer leaves open; for Couzin's leaders it would be a
+        fourth model.
+  \item \emph{Spacing.} A stopping limit that two neighbours share, rather
+        than each applying it alone, could keep crowded drones apart.
+  \item \emph{3D flight.} The code is three-dimensional throughout, and
+        maps already carry obstacle heights; flying over obstacles was left
+        out for time.
+  \item \emph{Sensing and real drones.} Obstacles come from the map; sensing
+        them, or mapping them in flight, and then flying the controllers on
+        real Crazyflies, are the steps toward a real flock.
+  \item \emph{More seeds and maps}, to resolve the smaller effects, the
+        unexplained 2--2 split, and whether another trap ranks the models
+        differently.
+\end{itemize}

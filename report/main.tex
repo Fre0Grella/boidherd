@@ -41,14 +41,26 @@
   three flocking models and a planning layer for informed leaders}
 \author{Marco Galeri\\
   \small Intelligent Robotic Systems, Alma Mater Studiorum -- Università di Bologna}
-\date{\todo{submission date}}
+\date{November 2026}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-  \todo{Write last: task, the three models, the planning layer, the method
-  (held-out maps, paired seeds), the main findings in one line each.}
+  A few informed leaders, which the others cannot recognise, have to bring a
+  flock of simulated Crazyflie drones to a goal only they know. Three flocking
+  models, Reynolds' boids, Couzin's zone model and a hybrid built on
+  Vásárhelyi's model for real drones, fly on the same robot, with the same
+  leaders, behind one interface; the leaders can add a deliberative layer
+  that plans a path on the known map and follows it. On maps none of the
+  models was tuned on, 450 runs paired by starting position show that the
+  planner is what gets Reynolds' flock past a corner or a dead end at all, that
+  more leaders help as Couzin predicted only in Couzin's model, and that the
+  hybrid fails with two leaders that plan different ways round an obstacle:
+  its flock follows their average, into the obstacle. What a model makes a
+  follower do, cruise on its own, wait to be pulled, or keep a direction to be
+  outvoted, explains each model's strengths and failures; no flock reached the
+  goal without leaders.
 \end{abstract}
 
 \input{sections/introduction}
@@ -60,7 +72,6 @@
 \input{sections/discussion}
 \input{sections/conclusion}
 
-\nocite{*}  % while drafting: list every source; remove once the text cites them
 \bibliographystyle{plainnat}
 \bibliography{references}
 

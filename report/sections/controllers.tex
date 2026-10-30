@@ -1,34 +1,257 @@
 \section{Controllers}
 \label{sec:controllers}
 
-\subsection{Flight}
+This section describes the three parts of the controller the project
+designed: the flight layer that lets a drone follow a flocking model, the three
+models, and the leaders' planning layer. Each part reached its form through
+failures observed in simulation; the main ones are told here, because they
+explain the design.
+
+\subsection{Flight: the ideal boid is not the robot}
 \label{sec:flight}
-% Velocity layer and nested attitude PIDs; the robot is not the ideal boid
-% (Virágh 2014): relaxation time, max acceleration, tilt. Design log
-% 2026-10-20 "Reynolds rules on the drones", phase 1.
-\todo{Flight layer.}
+
+The first version turned each boid acceleration straight into a tilt and
+flew Reynolds' rules unchanged. Twenty drones hovered calmly, then
+neighbouring pairs started swinging in and out with a period of about 2\,s,
+wider each time, until two touched and the physics blew up. The rules assume
+a boid accelerates the moment it is asked to; a quadrotor has to tilt first,
+and the attitude controller, with the gains of the Webots example, was slow
+and underdamped (a tilt step overshot by 45\%). A stiff spring, separation
+growing as $1/d^2$, behind a lagging, resonant actuator oscillates.
+\citet{viragh2014} report the same delay-induced oscillations in flying
+robots, colliding even in a hovering flock, and describe a robot by exactly
+such imperfections.
+
+So the drone was made to follow first, before touching the rules:
+\begin{itemize}
+  \item attitude is held by two nested loops, as in the Crazyflie firmware:
+        the angle error sets a wanted rotation rate, capped at 1.5\,rad/s,
+        and the rate error sets the motor differential. Faster rotations
+        flipped the drone in hard reversals. A 21\textdegree\ tilt step now
+        reaches 90\% in 0.26\,s with 4\% overshoot, where before it never
+        did within a second;
+  \item the hover speed comes from the physics ($4k\omega^2 = mg$, so
+        $\omega = 55.4$\,rad/s, against 55.37 measured), and the motors speed
+        up by $1/\sqrt{\cos\phi\cos\theta}$ when tilted;
+  \item every model outputs a wanted velocity $\mathbf v_d$, which a velocity
+        layer flies as $\mathbf a = (\mathbf v_d - \mathbf v)/\tau$, capped at
+        $a_{\max} = 2.5$\,m/s$^2$. Velocity steps measured against a point
+        mass with the same $\tau$ showed that below $\tau \approx 0.3$\,s the
+        response stops getting faster, since that is the attitude loops' own
+        speed, and only overshoots; $\tau = 0.3$\,s is the fastest setting
+        without overshoot.
+\end{itemize}
+The attitude loops alone were enough for the same rules, unchanged, to settle
+into a calm lattice with no collision (closest pair 0.64\,m, against contact
+before). The velocity layer came later, with the hybrid model, whose terms are
+velocities; it describes the robot by two measured numbers, $\tau$ and
+$a_{\max}$, so every model meets the same robot.
 
 \subsection{Three flocking models}
 \label{sec:models}
-% The equations, briefly, each with its parameters.
-%   Reynolds (1987): separation, alignment, cohesion; leaders add a goal.
-%   Couzin (2002, 2005): zones; leaders mix the goal direction with weight
-%   omega.
-%   Hybrid: Vásárhelyi's repulsion, friction alignment and walls, plus
-%   cohesion and a Couzin-style goal for leaders (phase 3).
-% Shared: the stopping limit (never closer than stop_drone / stop_wall),
-% walls from the map.
-% Tuning: hybrid over phase 3, Couzin and Reynolds by a grid on l_hall
-% (design log 2026-10-27).
-\todo{Reynolds, Couzin, hybrid; tuning.}
+
+\paragraph{Notation.} For drone $i$, $\mathcal N_i$ are the neighbours it
+hears within the perception radius $\rho = 2.5$\,m; $\mathbf d_{ij}$ is the
+offset from $i$ to $j$, $d_{ij} = |\mathbf d_{ij}|$, and $\hat{\mathbf x}$ is
+the unit vector of $\mathbf x$. $\mathbf v_i$ is a drone's velocity and
+$\mathbf g_i$, for a leader, the direction to go, from the route
+(\cref{sec:planner}) or straight at C, with $|\mathbf g_i|$ the distance left.
+$v_0 = 1$\,m/s is the cruise speed. Every speed in the models is a multiple of
+$v_0$ (rates scale with it, decelerations with its square), so the rules are
+exactly speed-free: at $k$ times $v_0$ the same flock flies the same paths, $k$
+times as fast. A test checks this.
+
+All three models share everything but the social rule: the mission clock, the
+stopping limit, the flight layer, perception, $v_0$, and which drones lead.
+Their leaders all slow down within $r_{\mathrm{arr}} = 3$\,m of C, by
+$s_i = \min(1, |\mathbf g_i|/r_{\mathrm{arr}})$, so they stop there.
+
+\paragraph{Reynolds.} The rules of \citet{reynolds1987} give an acceleration:
+\begin{equation}
+  \mathbf a_i =
+    k_s \!\!\sum_{j:\,d_{ij} < r_s}\!\! \Bigl(\frac{r_s}{d_{ij}} - 1\Bigr)(-\hat{\mathbf d}_{ij})
+  + k_a \bigl(\overline{\mathbf v}_j - \mathbf v_i\bigr)
+  + k_c\, \overline{\mathbf d}_{ij}
+  \;\bigl[\, + k_g\,(v_0 s_i \hat{\mathbf g}_i - \mathbf v_i) \text{ for a leader}\bigr],
+\end{equation}
+separation, alignment with the neighbours' mean velocity, cohesion toward
+their centre, and, for leaders, Reynolds' seek and arrive. The wanted
+velocity $\mathbf v_d = \mathbf v_i + \tau \mathbf a_i$ makes the velocity
+layer fly exactly $\mathbf a_i$. Nothing propels a follower: it moves only as
+its neighbours pull it. Parameters: $r_s = 1$\,m, $k_s = 4$\,m/s$^2$,
+$k_a = 4$\,s$^{-1}$, $k_c = 1.2$\,s$^{-2}$, $k_g = 4$\,s$^{-1}$.
+
+\paragraph{Couzin.} In the zone model of \citet{couzin2002}, as used by
+\citet{couzin2005}, each drone keeps a direction $\hat{\mathbf u}_i$ as its
+own state and flies it at $v_0$. If any neighbour is inside the zone of
+repulsion $\alpha$, avoiding them is all that counts; otherwise attraction and
+alignment weigh each neighbour the same:
+\begin{equation}
+  \mathbf u_i \leftarrow
+  \begin{cases}
+    -\sum_{j:\,d_{ij} < \alpha} \hat{\mathbf d}_{ij} & \text{if any } d_{ij} < \alpha,\\[2pt]
+    \sum_{j} \hat{\mathbf d}_{ij} + \sum_{j \text{ moving}} \hat{\mathbf v}_j
+      + \hat{\mathbf u}_i & \text{otherwise.}
+  \end{cases}
+\end{equation}
+An informed individual adds the goal with weight $\omega$,
+$\hat{\mathbf u}_i \leftarrow \mathrm{unit}(\hat{\mathbf u}_i + \omega \hat{\mathbf g}_i)$,
+and the wanted velocity is $v_0 s_i \hat{\mathbf u}_i$. Parameters:
+$\alpha = 0.4$\,m, $\omega = 1$; the zones of orientation and attraction
+merge into the perception radius. Two departures from the papers, both
+deliberate: a follower has no direction until a neighbour moves (Couzin's
+agents start with random ones, which would scatter the swarm at the start),
+and the turning-rate limit and noise are left to the real drone.
+
+\paragraph{Hybrid.} The model of \citet{vasarhelyi2018}, designed for real
+drones, with Reynolds' cohesion and Couzin's informed leaders. Its terms are
+velocities:
+\begin{equation}
+  \mathbf v_d = v_0 \hat{\mathbf h}_i
+  + p_r \!\!\sum_{j:\,d_{ij} < r_0}\!\! (r_0 - d_{ij})(-\hat{\mathbf d}_{ij})
+  + C_f \sum_j \bigl(|\mathbf v_{ij}| - D_{ij}\bigr)^{+}\, \hat{\mathbf v}_{ij}
+  + p_c\, \overline{\mathbf d}_{ij},
+\end{equation}
+cruise, linear repulsion, friction and cohesion, with
+$\mathbf v_{ij} = \mathbf v_j - \mathbf v_i$. Friction is Vásárhelyi's
+velocity alignment: two neighbours may differ in velocity by
+$D_{ij} = \max\bigl(v_s, D(d_{ij} - r_f)\bigr)$, and only the excess is
+corrected. The braking curve
+\begin{equation}
+  D(x) =
+  \begin{cases}
+    0 & x \le 0,\\
+    p\,x & 0 < p\,x < a/p,\\
+    \sqrt{2ax - a^2/p^2} & \text{otherwise}
+  \end{cases}
+\end{equation}
+is the highest speed from which a drone can still stop within $x$, at
+deceleration $a$, gentler over the last stretch. Alignment is thus strong up
+close and slack far away. The cruise heading $\hat{\mathbf h}_i$ is the mean
+direction of the neighbours seen moving, the drone's own included, Couzin's
+zone of orientation; a leader uses the same mean without itself, mixed with
+the goal, $\mathrm{unit}(\hat{\mathbf h}_i + w\hat{\mathbf g}_i)$, and cruises at
+$v_0 s_i$. Parameters, scaled from the authors' simulator to our speed and
+spacing and then tuned: $r_0 = 1$\,m, $p_r = 1$\,s$^{-1}$, $C_f = 0.2$,
+$v_s = 0.12\,v_0$, $r_f = 2$\,m, $p = 1$\,s$^{-1}$, $a = 1.6$\,m/s$^2$,
+$p_c = 0.4$\,s$^{-1}$, $w = 1$.
+
+\paragraph{How the hybrid got its shape.} The hybrid is the model the project
+grew on \texttt{l\_hall}, and each of its departures from Vásárhelyi's model
+answers a failure seen there:
+\begin{itemize}
+  \item \emph{Friction gain 0.2, not 1.} Friction sums over about ten
+        neighbours, so at gain 1 a drone tries to correct a velocity
+        difference ten times faster than it can tilt; a resting flock
+        jiggled at 0.2\,m/s. At 0.2 it settles.
+  \item \emph{A stopping limit instead of walls that push.} Vásárhelyi keeps
+        drones off walls with virtual agents that push them away. A pillar
+        forest then looked like a solid wall, and the push, faster than the
+        cruise, bounced the flock back. The stopping limit below replaced it.
+  \item \emph{The heading is alignment.} At first each drone cruised along
+        its own last heading. Eighteen private headings outvoted two leaders:
+        drones that slid into a corner stayed there, and one leader flew away
+        from C. Couzin's result relies on followers having no direction of
+        their own beyond their neighbours', and his informed individual mixes
+        the goal with the social direction, not with its own momentum. With
+        the heading taken from the neighbours, the flock wakes from its
+        leaders outward.
+\end{itemize}
+
+\paragraph{The stopping limit.} Every model's wanted velocity ends in the same
+limit: toward each neighbour, beyond that neighbour's own speed away, and
+toward each wall, a drone may close only as fast as it could still stop
+before a margin $m = 0.3$\,m:
+\begin{equation}
+  \mathbf v_d \cdot \hat{\mathbf d}_{ij} \le
+    \mathbf v_j \cdot \hat{\mathbf d}_{ij} + D(d_{ij} - m),
+  \qquad
+  \mathbf v_d \cdot \hat{\mathbf w} \le D(d_w - m).
+\end{equation}
+Each inequality is a half-plane of allowed velocities; a few rounds of
+projecting onto them in turn find a velocity inside all of them. The walls
+get the last rounds, so where the limits conflict the wall's is the one kept:
+a drone caught between a wall and a closing neighbour may end up too close to
+the neighbour, but never in the wall. The limit only removes
+speed, so nothing bounces, and it bounds whatever a model asks for. On the
+real dynamics it kept drones about 0.3\,m from walls; between drones, in a
+crowd, it did not always hold (\cref{sec:results}).
+
+\paragraph{Tuning.} The hybrid was tuned over the whole of its development on
+\texttt{l\_hall}. To compare it fairly, Couzin and Reynolds were then tuned
+on the same map under one protocol, fixed before any run: two settings each,
+chosen from how the model had failed, 15 runs each (a grid on one seed, the
+best three again on a second), on seeds never used by the experiments, scored
+by the drones in C at the end. Couzin's best was $\omega = 1$,
+$\alpha = 0.4$\,m: a wider zone of repulsion, which overrides everything
+else, held the drones apart too long at the gap. Reynolds' best, goal 4 and
+alignment 4, brought 1 drone of 20 to C: its leaders stop at the L's inner
+corner, where steering straight at C presses them into a wall, a local
+minimum no weight removes. A later check with the plan on as well left
+$\omega$ at 1, but showed that a Couzin leader off the walls can leave its
+flock behind for good, since nothing holds it to the flock's pace. That is a
+property of the model as published, kept and measured
+(\cref{sec:results}).
 
 \subsection{The leaders' planning layer}
 \label{sec:planner}
-% Motivated by failures: a leader steering straight at C leads the flock
-% into the dead end. A* on a 0.25 m grid with a clearance cost, small
-% obstacles left to the drones; path pruning; pure pursuit with a 2 m
-% lookahead; replanning when the flock pushes a leader behind a wall
-% (line of sight lost). Design log 2026-10-27 "Phase 5: the plan" and
-% 2026-10-28 "Leaders plan again".
-% Video: plan off vs plan on, and a replan, on dead_end.
-\todo{Planner, pursuit, replanning; videos.}
+
+A leader that steers straight at C fails wherever that line crosses a wall:
+Reynolds' leaders stopped at the L's inner corner, and on \texttt{dead\_end}
+every model's flock ends in the cup. The leaders therefore get a deliberative
+layer on top of the reactive model, the hybrid architecture of
+\citet{arkin1998}: a leader plans a path on the known map and follows it,
+while the flocking model stays as it is. Followers are untouched: they don't
+know a map exists, so the leadership question stays the same, and only what a
+leader knows changes.
+
+\paragraph{What a leader plans around.} The arena's outline and every obstacle
+at least 1\,m across. Smaller obstacles, such as \texttt{l\_hall}'s pillars,
+are left to the stopping limit, since a flock flows through a forest that a
+planner would have to treat as a wall.
+
+\paragraph{Path finding.} No single clearance works: a large one erases the
+passages drones fly through, a small one makes the path hug every corner and
+drag the flock into it. So the clearance is a cost, not a constraint: A*
+\citep{hart1968} on a grid of 0.25\,m cells, 8-connected, where cells closer
+than the drones' margin (0.3\,m) to an obstacle are forbidden and a step at
+distance $d < c = 2$\,m from the nearest one costs
+\begin{equation}
+  1 + w \left(\frac{c - d}{c - m}\right)^{2}, \qquad w = 4,
+\end{equation}
+times its length. In a hall 8\,m wide the centre line is free, a 4\,m gap is
+crossed through its middle, and a narrower passage is still allowed, at a
+price (\cref{fig:maps}). The path is then pruned to its corners: a shortcut
+between two waypoints is kept only if it never comes closer to a wall than the
+planned path between them did, so pruning cannot undo the clearance. Turned
+down: a visibility graph (it needs the one clearance we can't choose),
+Voronoi roadmaps (maximal clearance, long detours in open rooms) and sampling
+planners such as RRT (built for many dimensions, and random).
+
+\paragraph{Path following.} The leader aims at the point 2\,m ahead along its
+path from wherever the flock has pushed it, pure pursuit \citep{coulter1992};
+its progress along the path only moves forward, so a path that doubles back
+is not cut short. The route hands the model $\mathbf g_i$: the direction to
+that point, with the length of the path still to go, so the models' own
+arrive term still stops the leader at C and no model had to change.
+
+\paragraph{Planning again.} A leader first planned once, at go time, from
+where it hovered. Replays of the failures on \texttt{dead\_end} showed why
+that was not enough: the flock had pushed a leader into the cup, its lookahead
+point lay on the other side of the cup's arm, and pursuing it pressed the
+leader into the wall. Now, whenever the lookahead point is hidden behind a
+kept obstacle, the leader plans again from where it is, at most once a
+second. The line-of-sight test is exact: a segment clipped against each box
+\citep{liang1984} and its distance to each pillar's centre. On every run that
+succeeded with a single plan, replanning never triggered: those runs ended at
+the same time to the millisecond. It changed only the failures.
+
+\paragraph{Each leader for itself.} Every leader plans its own path from its
+own position, with no exchange with the others: a leader that deliberates
+with what it knows. Where an obstacle can be passed on either side, two
+leaders may choose different sides. This was expected to split the flock at
+worst, with each part keeping a leader; \cref{sec:results} shows that for one
+model it does something else.
+
+\todo{Video: dead\_end with the plan off (the flock fills the cup) and on,
+with a replan.}
