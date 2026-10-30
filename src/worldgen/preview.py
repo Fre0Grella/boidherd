@@ -27,6 +27,26 @@ LEADER = "#c8102e"
 def draw_preview(course: Course, swarm: tuple[Drone, ...], title: str, file: Path) -> None:
     fig = plt.figure(figsize=(10, 10 * course.floor.depth / course.floor.width + 1))
     ax = fig.add_subplot()
+    draw_course(ax, course)
+
+    for leader, color, marker, size, label in (
+        (False, FOLLOWER, "o", 25, "follower"),
+        (True, LEADER, "*", 140, "leader"),
+    ):
+        group = [d for d in swarm if d.leader == leader]
+        if group:
+            xs, ys = zip(*(d.xy for d in group), strict=True)
+            ax.scatter(xs, ys, s=size, c=color, marker=marker, zorder=3, label=label)
+
+    ax.set_title(title)
+    ax.legend(loc="upper left", fontsize="small", framealpha=0.9)
+    fig.tight_layout()
+    fig.savefig(file, dpi=150)
+    plt.close(fig)
+
+
+def draw_course(ax: Axes, course: Course) -> None:
+    """The map from above: free space, sectors, walls and pillars, axes in metres."""
     ax.add_patch(Polygon(list(course.area.exterior.coords), color=FREE, zorder=0))
     for hole in course.area.interiors:
         ax.add_patch(Polygon(list(hole.coords), color="white", zorder=0))
@@ -41,27 +61,13 @@ def draw_preview(course: Course, swarm: tuple[Drone, ...], title: str, file: Pat
             Circle(pillar.center, pillar.radius, color=OBSTACLE, alpha=_alpha(pillar.height))
         )
 
-    for leader, color, marker, size, label in (
-        (False, FOLLOWER, "o", 25, "follower"),
-        (True, LEADER, "*", 140, "leader"),
-    ):
-        group = [d for d in swarm if d.leader == leader]
-        if group:
-            xs, ys = zip(*(d.xy for d in group), strict=True)
-            ax.scatter(xs, ys, s=size, c=color, marker=marker, zorder=3, label=label)
-
     floor, t = course.floor, WALL_THICKNESS  # show the boundary walls too
     ax.set_xlim(floor.x_min - t, floor.x_max + t)
     ax.set_ylim(floor.y_min - t, floor.y_max + t)
     ax.set_aspect("equal")
     ax.set_xlabel("x (m)")
     ax.set_ylabel("y (m)")
-    ax.set_title(title)
     ax.grid(True, linewidth=0.3, alpha=0.5)
-    ax.legend(loc="upper left", fontsize="small", framealpha=0.9)
-    fig.tight_layout()
-    fig.savefig(file, dpi=150)
-    plt.close(fig)
 
 
 def _rect(ax: Axes, r: Rect, color: str, alpha: float = 1.0, label: str | None = None) -> None:
