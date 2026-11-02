@@ -4,11 +4,20 @@
 \subsection{Flight: the ideal boid is not the robot}
 \label{sec:flight}
 
+\begin{figure}[!h]
+  \centering
+  \input{figures/flight}
+  \caption{The flight layer, shared by every model. The angle and rate loops
+    are nested as in the Crazyflie firmware; an altitude PID holds the
+    height and yaw is held the same way as roll and pitch.}
+  \label{fig:flight}
+\end{figure}
+
 The first version turned Reynolds' accelerations straight into a tilt.
 Twenty drones hovered, then neighbouring pairs swung in and out, wider each
 time, until two touched: a stiff separation rule behind a slow, underdamped
-attitude controller (a tilt step overshot by 45\%) oscillates, as Virágh et
-al.\ predict. The robot was fixed before the rules, with the flight layer of
+attitude controller (a tilt step overshot by 45\%) oscillates, as
+\citet{viragh2014} predict for flocking robots that respond with a delay. The robot was fixed before the rules, with the flight layer of
 \cref{fig:flight}, whose attitude loops follow the Crazyflie firmware
 \citep{bitcraze2024}:
 \begin{itemize}
@@ -25,15 +34,6 @@ al.\ predict. The robot was fixed before the rules, with the flight layer of
         calm lattice.
 \end{itemize}
 
-\begin{figure}[tbp]
-  \centering
-  \input{figures/flight}
-  \caption{The flight layer, shared by every model. The angle and rate loops
-    are nested as in the Crazyflie firmware; an altitude PID holds the
-    height and yaw is held the same way as roll and pitch.}
-  \label{fig:flight}
-\end{figure}
-
 \subsection{Three flocking models}
 \label{sec:models}
 
@@ -45,7 +45,8 @@ over the neighbours within 2.5\,m. For a leader, $\hat{\mathbf g}_i$ is the
 direction to go. $v_0 = 1$\,m/s is the cruise speed; leaders slow down over
 the last 3\,m to C. The models share everything else.
 
-\paragraph{Reynolds.} Four accelerations, added up: away from neighbours that
+\paragraph{Reynolds.} The classic boids \citep{reynolds1987}: four
+accelerations, added up: away from neighbours that
 are too close, toward the neighbours' mean velocity, toward their centre,
 and, for leaders only, toward the goal at cruise speed:
 \begin{equation}
@@ -59,7 +60,8 @@ Separation grows sharply as a neighbour comes within $r_s = 1$\,m. Note what
 is missing: nothing pushes a follower forward, it moves only as its
 neighbours pull it. Weights: $k_s = 4$, $k_a = 4$, $k_c = 1.2$, $k_g = 4$.
 
-\paragraph{Couzin.} Each drone keeps a direction of its own,
+\paragraph{Couzin.} The zone model of \citet{couzin2002}. Each drone keeps a
+direction of its own,
 $\hat{\mathbf u}_i$, and always flies it at $v_0$. Every step it updates the
 direction with a strict priority: if any neighbour is closer than
 $\alpha = 0.4$\,m, it only turns away; otherwise every neighbour counts the
@@ -75,11 +77,13 @@ same, pulling it toward their positions and their directions:
       & \text{otherwise.}
   \end{cases}
 \end{equation}
-A leader then turns toward the goal, $\hat{\mathbf u}_i \leftarrow
+A leader then turns toward the goal as in \citet{couzin2005},
+$\hat{\mathbf u}_i \leftarrow
 \mathrm{unit}(\hat{\mathbf u}_i + \omega \hat{\mathbf g}_i)$ with
 $\omega = 1$, so it is as much drawn by the goal as by its own heading.
 
-\paragraph{Hybrid.} Built on Vásárhelyi et al.'s model for real drones, with
+\paragraph{Hybrid.} Built on the model \citet{vasarhelyi2018} flew on 30 real
+drones, with
 Reynolds' cohesion and Couzin's leaders. Its four terms are velocities:
 \begin{equation}
   \mathbf v_d =
@@ -129,13 +133,13 @@ along it is pressed into that wall and stops there, a local minimum like a
 potential field's, and the flock stays with it; tuning later confirmed that no weights get Reynolds' leaders round. A
 comparison of models would then only measure which one happens to escape a
 local minimum. So the leaders were given a deliberative layer on top of the
-reactive model, the hybrid architecture of the course: a leader plans a path
+reactive model, the classic hybrid architecture \citep{arkin1998}: a leader plans a path
 on the known map and follows it, while the model stays as it is and the
 followers are untouched. The \texttt{dead\_end} map was built with it, to
 make the trap explicit: the straight line from A to C ends in the bottom of
 a cup.
 
-\paragraph{Path finding.} A* on a 0.25\,m grid around every obstacle at
+\paragraph{Path finding.} A* \citep{hart1968} on a 0.25\,m grid around every obstacle at
 least 1\,m across (smaller ones, like the pillars, are left to the stopping
 limit). No single clearance works: a large one erases the passages, a small
 one drags the flock along every corner. So clearance is a cost: cells within
@@ -144,7 +148,7 @@ they come to one, up to 2\,m away. The path keeps to the middle of halls and
 gaps (\cref{fig:maps}) and is pruned to its corners.
 
 \paragraph{Path following.} The leader aims at the point 2\,m ahead along its
-path (pure pursuit) and hands the model that direction, so no model had to
+path (pure pursuit, \citealp{coulter1992}) and hands the model that direction, so no model had to
 change. If the flock pushes a leader behind a wall, so that the point ahead
 is out of sight, the leader plans again from where it is.
 

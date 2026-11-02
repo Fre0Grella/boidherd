@@ -16,13 +16,9 @@ a real Crazyflie, and tilt at 30\textdegree. All drones fly at one altitude;
 A and C, walls and pillars. The number of drones~$n$, of leaders~$j$ and a
 seed belong to the run: a world generator places the $n$ drones in A at a
 fixed density, picks $j$ leaders at random with the seed, and writes the
-Webots world. \Cref{fig:maps} shows the three maps. \texttt{l\_hall}, an L
-with a pillar forest and a wall with a 4\,m gap, is the one the models were
-developed and tuned on; \texttt{l\_turn} is the same L empty, and
-\texttt{dead\_end} a room with a cup open toward A, whose bottom the straight
-line from A to C ends in. Both are held out for the experiments.
+Webots world. \Cref{fig:maps} shows the three maps used for the experiments.
 
-\begin{figure}[tbp]
+\begin{figure}[!h]
   \centering
   \includegraphics[width=\linewidth]{maps}
   \caption{The maps from above, each with a 20-drone spawn: followers as
@@ -37,11 +33,7 @@ drone runs the same controller; a leader differs only by knowing where C is.
   \item \emph{Sensing.} Each drone broadcasts its velocity over infra-red;
         from each packet a receiver gets the sender's velocity, distance and
         direction (errors against ground truth: 1.4\,cm, 0.4\textdegree).
-        Velocities, not headings, because a quadrotor flies sideways: where
-        it faces says nothing about where it goes. Nothing in the packet
-        marks a leader, so followers cannot tell who leads. Position comes
-        from GPS, and obstacles from the map, since the Crazyflie's four
-        range rays leave blind spots and see flockmates as walls.
+        Position comes from GPS, and obstacles from the map.
   \item \emph{Mission.} The flock forms for 16\,s, then the leaders set off.
         Followers don't know where C is but recognise it once inside, fly
         2.5\,m further in and stop.

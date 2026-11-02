@@ -60,16 +60,16 @@
   simulated Crazyflie drones to a goal only they know. Three flocking models,
   Reynolds', Couzin's and a hybrid built on Vásárhelyi's model for real
   drones, fly on the same robot behind one interface, and the leaders can
-  plan a path on the known map. In 450 runs on maps no model was tuned on,
-  the planner is what gets Reynolds' flock past a corner or a dead end; more
-  leaders help, as Couzin predicted, only in Couzin's model; and the hybrid
-  fails with two leaders that go round an obstacle on different sides, since
-  its flock follows their average. What a model makes a follower do explains
-  each one's strengths and failures.
+  plan a path on the known map. The models are compared, with and without
+  planning and for different numbers of drones and leaders, on maps none of
+  them was tuned on. Planning is what gets Reynolds' flock past corners and
+  dead ends; more leaders help only in Couzin's model, as Couzin predicted;
+  and the hybrid's flock fails when its leaders pass an obstacle on
+  different sides, because it follows their average. What a model makes a
+  follower do explains each one's strengths and failures.
 \end{abstract}
 
 \input{sections/introduction}
-\input{sections/background}
 \input{sections/system}
 \input{sections/controllers}
 \input{sections/method}

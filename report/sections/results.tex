@@ -111,6 +111,15 @@ with 4. \emph{Larger flocks} succeed less in every model, most sharply
 Reynolds at $n = 30$ (4 of 30 against 25 at $n = 20$). Successful runs take
 47--60\,s in median; Reynolds keeps its 0.5\,m spacing throughout.
 
+\Cref{fig:video-couzin} shows why Couzin's flock needs more leaders. A Couzin
+drone steers by its neighbours' positions and directions and by its own, so
+a single leader is one voice among twenty: it turns toward C, the others
+average it out, and it leaves over the cup alone, while the flock, packed
+tight, wanders round A and sets off only after about 70\,s, too late. With
+four leaders the goal outweighs the flock's own direction: the flock follows
+the three that go over the cup into C, and the fourth, which planned round
+the other arm, goes alone.
+
 \videofigure{video_couzin_j1_j4}{Couzin on the same spawn at 40\,s, with 1 leader
   (left) and with 4 (right). The single leader is past the cup alone, while
   its flock stays behind in A; 4 leaders outvote the flock's own direction
@@ -119,37 +128,34 @@ Reynolds at $n = 30$ (4 of 30 against 25 at $n = 20$). Successful runs take
 \subsection{Why two leaders lose the hybrid's flock}
 \label{sec:split}
 
-\Cref{fig:split} shows what a flock does when its two leaders disagree, on
-one spawn, seed 1, where Couzin and Reynolds succeed and the hybrid fails.
-The two leaders start on either side of the cup's axis and each plans round
-its own arm. Couzin's and Reynolds' flocks go with one leader, the bottom
-one, and the other reaches C alone over the top. The paths part slowly, so
-at go time both leaders head roughly east. The hybrid's followers cruise
-along their neighbours' mean heading and are at full speed within 2\,s: the
-two leaders' pulls cancel, and the flock flies straight on between them
-into the cup. Reynolds' followers have no cruise and speed up only as they
-are pulled (on seed 4, 0.34\,m/s at 18\,s against the hybrid's 0.99), so the
-leaders get apart before the flock commits. The hybrid's flock then turns
-back out of the cup and loops round the room, carrying one leader with it,
-since a hybrid leader also follows its neighbours' heading; the other leader
-reaches C alone. Every hybrid failure with split leaders that was replayed
-(seeds 0, 4, 6, 8 and 9) goes this way.
+\Cref{fig:split} shows one spawn, seed 4, where the hybrid fails and
+Reynolds succeeds. The two leaders start on either side of the cup's axis
+and each plans round its own arm; their paths part slowly, so at go time
+both head roughly east. The hybrid's followers cruise along their
+neighbours' mean heading and are at full speed within 2\,s: the two
+leaders' pulls cancel, and the flock flies straight on between them into
+the cup. Reynolds' followers have no cruise and speed up only as they are
+pulled (0.34\,m/s at 18\,s against the hybrid's 0.99), so the leaders get
+apart before the flock commits, and it goes with one of them. The hybrid's
+flock then turns back out of the cup and loops round the room, carrying one
+leader with it, since a hybrid leader also follows its neighbours' heading;
+the other leader reaches C alone. Every hybrid failure with split leaders
+that was replayed (seeds 0, 4, 6, 8 and 9) goes this way.
 
 \begin{figure}[tbp]
   \centering
   \begin{subfigure}{0.8\linewidth}
-    \includegraphics[width=\linewidth]{trajectory_dead_end_couzin_plan_n20_j2_seed1}
-    \caption{Couzin.}
+    \includegraphics[width=\linewidth]{trajectory_dead_end_hybrid_plan_n20_j2_seed4}
+    \caption{Hybrid: the flock flies between its leaders into the cup, then
+      loops back carrying one of them.}
   \end{subfigure}
   \begin{subfigure}{0.8\linewidth}
-    \includegraphics[width=\linewidth]{trajectory_dead_end_reynolds_plan_n20_j2_seed1}
-    \caption{Reynolds.}
+    \includegraphics[width=\linewidth]{trajectory_dead_end_reynolds_plan_n20_j2_seed4}
+    \caption{Reynolds: the flock follows the top leader into C.}
   \end{subfigure}
-  \caption{Two leaders that disagree: the same spawn (seed 1, 20 drones,
-    2 leaders) with two models. Each leader plans round its own arm of the
-    cup; the flock goes with the bottom one, and the top one reaches C alone.
-    Solid: the followers' centre, numbered every 10\,s; dashed: the two
-    leaders.}
+  \caption{The same spawn (seed 4, 20 drones, 2 leaders) with two models, to
+    the 83\,s limit. Solid: the followers' centre, numbered every 10\,s;
+    dashed: the two leaders.}
   \label{fig:split}
 \end{figure}
 

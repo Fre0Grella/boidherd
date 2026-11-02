@@ -1,10 +1,6 @@
 \section{Experimental method}
 \label{sec:method}
 
-The experiments follow the method of \citet{nehmzow2009}:
-hypotheses first, written in the design log before the runs that test them,
-then a fixed setting and measure, then statistics.
-
 \subsection{Hypotheses}
 \label{sec:hypotheses}
 
@@ -54,11 +50,3 @@ assumes no distribution, and unpaired groups with Fisher's exact test. The
 $p$ values are uncorrected for the many comparisons, so they are read as
 strength of evidence next to the counts, not as ``significant''.
 
-\paragraph{Traps.} \emph{Confounding:} the first model comparison ran on the
-map the hybrid was tuned on, against untuned models; the others were then
-tuned by one protocol and the tests moved to held-out maps (the hybrid still
-had more tuning). \emph{Ceiling:} \texttt{l\_turn} can't rank the models with
-the plan, so the second experiment runs on \texttt{dead\_end}.
-\emph{Wishful thinking:} results against a hypothesis were kept, failures
-were replayed before any code changed, and a fix that would have changed
-what a model is (Couzin leaders that wait) was turned down.
