@@ -1,86 +1,38 @@
 \section{State of the art}
 \label{sec:background}
 
-\subsection{Swarm robotics}
+\paragraph{Swarm robotics} designs the collective behaviour of many simple
+robots acting on local sensing, without central control
+\citep{brambilla2013}. In Brambilla et al.'s terms this project is
+coordinated motion (flocking) carrying a collective decision (where to go)
+made by a few informed members, with controllers designed by hand.
 
-Swarm robotics designs the collective behaviour of many simple robots that
-act on local sensing and communication, without central control
-\citep{brambilla2013}. Brambilla et al.\ classify the behaviours studied into
-spatial organisation (aggregation, patterns), navigation (collective
-exploration, coordinated motion, collective transport) and collective
-decision making, and the design methods into behaviour-based design, by hand,
-and automatic design. This project is a case of coordinated motion, flocking,
-that carries a collective decision, where to go, made by a few informed
-members; its controllers are designed by hand and studied in simulation.
+\paragraph{Flocking models.} \citet{reynolds1987} built flocks from three
+local rules, separation, alignment and cohesion, each an acceleration; they
+remain the usual starting point for flocking robots, and \citet{hauert2011}
+flew them on fixed-wing robots. \citet{couzin2002} cast the same ingredients
+as zones: an individual avoids neighbours in its zone of repulsion and,
+only if there are none, aligns with and moves toward the others.
+\citet{olfatisaber2006} showed that free rules break a flock with inertia
+into pieces unless a navigational feedback, a virtual leader, holds it
+together. \citet{viragh2014} described a flying robot by its imperfections
+(response time, largest acceleration, delay, noise) and showed that delays
+make ideal models oscillate and collide; \citet{vasarhelyi2018} flew 30 real
+drones with a model built for this, with linear repulsion, a velocity
+alignment called friction, and virtual walls, in an arena with no goal.
+\citet{soria2021} showed that such reactive models do not guarantee safe
+flight in clutter.
 
-\subsection{Flocking models}
+\paragraph{Leadership.} \citet{couzin2005} gave a few individuals of a
+zone-model group a preferred direction, mixed into the social one with a
+weight $\omega$, while the others cannot tell who they are. They found that a
+small informed minority can guide a large group, more accurately the larger
+its fraction; that larger groups need a smaller fraction; and that with two
+informed subgroups the group follows their average direction when the two
+differ little, and chooses one when they differ a lot.
 
-\citet{reynolds1987} produced flocks for computer animation from three local
-rules, each an acceleration: separation from neighbours that are too close,
-alignment with their velocity, and cohesion toward their centre. Boids see
-perfectly and respond at once, and they remain the usual starting point for
-flocking robots: \citet{hauert2011} flew Reynolds' rules with a migration
-point on ten fixed-wing robots, noting that a rotorcraft, which can move in
-any direction, is the easiest robot to fly them on.
-
-\citet{couzin2002} cast the same ingredients as zones around an individual: it
-moves away from neighbours in the zone of repulsion, and only if there are
-none, aligns with those in the zone of orientation and moves toward those in
-the zone of attraction. Changing the widths of the zones makes a group switch
-between a swarm, a milling torus and a parallel group, and the group's
-history decides which, a collective memory.
-
-\citet{olfatisaber2006} gave flocking a theory for agents with inertia: the
-free rules generically break a flock into pieces, and a navigational
-feedback, a virtual leader, holds it together and steers it; obstacles enter
-as virtual agents.
-
-Bringing the models to real flying robots meant modelling the robot.
-\citet{viragh2014} describe a flying robot by its imperfections, the time it
-takes to respond, its largest acceleration, delays, noise and limited range,
-and show that delays make an ideal flocking model oscillate and collide; they
-replace the stiff separation with a linear repulsion and add a pairwise
-\emph{friction}, an alignment that damps velocity differences between close
-neighbours. \citet{vasarhelyi2018} flew 30 drones with such a model in a
-confined arena, its parameters optimised by evolution. Walls and obstacles
-are virtual agents at their nearest point, flying away from them, with which
-a drone aligns along a braking curve: the closer the wall, the less it may
-fly toward it. Their arena has no goal: the flock only has to stay together
-and inside.
-
-Reactive models have limits in clutter. \citet{soria2021} show that the
-potential-field family of swarm models does not guarantee fast and safe
-flight among obstacles, and replace it with model predictive control.
-
-\subsection{Leadership in groups on the move}
-
-\citet{couzin2005} asked how animal groups move toward a goal that only a few
-of their members know, when the others cannot tell who those are and nobody
-signals. Their informed individuals are ordinary members of a zone-model
-group, with one difference: they mix a preferred direction into the direction
-their neighbours suggest, with a weight $\omega$. Three results frame this
-project:
-\begin{enumerate}
-  \item a small informed minority can guide a large group, and the accuracy of
-        the group grows with the fraction of informed individuals;
-  \item the larger the group, the smaller the fraction needed for the same
-        accuracy;
-  \item with two informed subgroups preferring different directions, the
-        group follows their average when the directions differ little, and
-        chooses one of them, usually the larger subgroup's, when they differ
-        a lot.
-\end{enumerate}
-The followers in this project are uninformed in the same sense: they don't
-know where the goal is and can't recognise the leaders.
-
-\subsection{Deliberative and hybrid control}
-
-A purely reactive controller maps what a robot senses to what it does; a
-deliberative one plans on a model of the world. Hybrid architectures put a
-deliberative layer on top of a reactive one, which keeps the robot safe while
-the plan gives it direction \citep{arkin1998}. Path finding on a grid with A*
-\citep{hart1968}, with a cost that grows near obstacles, and path following by
-pure pursuit, which steers toward a point a fixed distance ahead along the
-path \citep{coulter1992}, are standard ways to fill the two layers in mobile
-robotics. This project gives such a layer to the leaders only, on top of the
-flocking model, and leaves the followers purely reactive.
+\paragraph{Hybrid control.} A deliberative layer that plans on a model of the
+world, on top of a reactive one that keeps the robot safe, is the classic
+hybrid architecture \citep{arkin1998}; A* on a grid \citep{hart1968} and pure
+pursuit \citep{coulter1992} are standard ways to plan and follow a path. This
+project gives such a layer to the leaders only.

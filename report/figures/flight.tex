@@ -1,0 +1,38 @@
+% The flight layer, from the wanted velocity to the motors (report/sections/controllers.tex).
+\begin{tikzpicture}[
+    node distance=6mm and 9mm,
+    block/.style={draw, rounded corners=2pt, minimum height=10mm, minimum width=18mm,
+                  align=center, font=\small, fill=#1},
+    block/.default=blue!8,
+    flow/.style={-{Stealth[length=2mm]}, thick},
+    feed/.style={-{Stealth[length=1.6mm]}, black!60},
+    lbl/.style={font=\scriptsize, above, midway},
+    sensor/.style={font=\scriptsize, text=black!70},
+  ]
+  \node[block=orange!15] (vel) {velocity layer\\[-1pt]
+        \scriptsize $\mathbf a = (\mathbf v_d - \mathbf v)/\tau$};
+  \node[block, right=of vel] (tilt) {tilt\\[-1pt]\scriptsize $\le 30^\circ$};
+  \node[block, right=of tilt] (angle) {angle loop\\[-1pt]\scriptsize P, $\le 1.5$\,rad/s};
+  \node[block, right=of angle] (rate) {rate loop\\[-1pt]\scriptsize P};
+  \node[block=gray!15, right=of rate] (mix) {motor\\[-1pt]mixing};
+  \node[block, below=8mm of rate] (alt) {altitude\\[-1pt]\scriptsize PID};
+
+  \coordinate[left=9mm of vel] (in);
+  \coordinate[right=9mm of mix] (out);
+  \draw[flow] (in) -- node[lbl] {$\mathbf v_d$} (vel);
+  \draw[flow] (vel) -- node[lbl] {$\mathbf a$} (tilt);
+  \draw[flow] (tilt) -- node[lbl] {angle} (angle);
+  \draw[flow] (angle) -- node[lbl] {rate} (rate);
+  \draw[flow] (rate) -- (mix);
+  \draw[flow] (mix) -- node[lbl] {motors} (out);
+  \draw[flow] (alt.east) -| node[pos=0.25, above, font=\scriptsize] {thrust} (mix.south);
+
+  \node[sensor, below=6mm of vel] (gps) {GPS};
+  \node[sensor, below=6mm of angle] (imu) {IMU};
+  \node[sensor, below=8mm of alt] (alti) {GPS};
+  \draw[feed] (gps) -- (vel);
+  \draw[feed] (imu) -- (angle);
+  \draw[feed] (alti) -- (alt);
+  \node[sensor, above=5mm of rate] (gyro) {gyro};
+  \draw[feed] (gyro) -- (rate);
+\end{tikzpicture}

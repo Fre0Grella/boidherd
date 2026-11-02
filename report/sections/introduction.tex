@@ -2,42 +2,21 @@
 \label{sec:introduction}
 
 A flock of $n$ drones takes off in sector A of a known course and has to
-reach sector C. Only $j$ of the drones, the leaders, know where C is, and
-nothing tells the others which drones those are: there is no leader flag and
-no signal, only neighbours flying close by. Can the leaders bring the whole
-flock to C, and what does that depend on?
+reach sector C. Only $j$ of them, the leaders, know where C is, and nothing
+tells the others which drones those are: no flag, no signal, only neighbours
+flying close by. Can the leaders bring the whole flock to C, and what does
+that depend on? \citet{couzin2005} asked this of animal groups; this project
+asks it of a swarm of simulated quadrotors.
 
-This is the question \citet{couzin2005} asked of animal groups, put to a swarm
-of simulated quadrotors. It joins three things that are usually studied apart.
-The first is the flocking model: the rules that tell a drone how to move from
-what it senses of its neighbours, here three of them, from computer animation
-\citep{reynolds1987}, from biology \citep{couzin2002,couzin2005} and from
-real drone swarms \citep{vasarhelyi2018}. The second is the robot: a
-Crazyflie in Webots, with the inertia, response time and limited thrust that
-an ideal boid doesn't have. The third is the leaders' control: a leader that
-steers straight at C leads its flock into any wall in the way, so the leaders
-get a deliberative layer, a planner that finds a path on the map, while the
-followers stay purely reactive.
+Three things that are usually studied apart meet here: the flocking model,
+the robot that has to fly it, and how the leaders steer. The project builds
+one Crazyflie controller in Webots in which three flocking models are
+interchangeable, gives the leaders an optional planning layer, and compares
+models, planning, flock size and number of leaders on maps none of the
+models was tuned on.
 
-The project compares the three models on the same robot, with the same
-leaders, on maps none of them was tuned on, with the leaders' planner off and
-on, and then over the number of drones and of leaders: 450 runs in all, paired
-by starting position and analysed with exact tests. The hypotheses were
-written down before each experiment (\cref{sec:hypotheses}).
-
-The main findings are these. A planner is what lets a flock that follows its
-leaders faithfully, Reynolds', get past a corner or a dead end at all. More
-leaders help as Couzin predicted for Couzin's model only. And with two leaders
-that plan their ways independently, the model built for real drones fails
-where the simplest model succeeds: its flock follows the average of two paths
-round an obstacle, straight into it, as Couzin's informed groups do when their
-preferences differ little. Which model works best depends on what drives a
-follower, and on whether the leaders agree.
-
-\Cref{sec:background} summarises the state of the art. \Cref{sec:system}
-gives an overview of the system and the choices behind it, and
-\cref{sec:controllers} the flight layer, the three models and the planner.
-\Cref{sec:method} sets out the hypotheses and the experimental method,
-\cref{sec:results} the results and \cref{sec:discussion} what they mean.
-\Cref{sec:conclusion} concludes, and the appendix explains how to run the
-project and lists the videos.
+\Cref{sec:background} summarises the state of the art, \cref{sec:system}
+the system and its design choices, \cref{sec:controllers} the flight layer,
+the models and the planner. \Cref{sec:method,sec:results,sec:discussion} give
+the experiments, their results and what they mean, and \cref{sec:conclusion}
+concludes.

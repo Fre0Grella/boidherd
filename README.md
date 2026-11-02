@@ -1,13 +1,22 @@
 # boidherd
 
-Reynolds boids on simulated Crazyflie drones in Webots: a few informed
-leaders guide a flock through an obstacle course to a goal that only
-they know.
+A flock of simulated Crazyflie drones in Webots: a few informed leaders,
+which the others cannot recognise, guide the flock through an obstacle
+course to a goal that only they know.
 
-Status: phase 1 (flat flocking). Drones take off, sense each other over
-IR and flock with Reynolds' rules; adapting the rules to the robot is
-under way. Decisions and their reasons are in
-[docs/design-log.md](docs/design-log.md).
+Three flocking models fly on the same robot behind one interface:
+Reynolds' boids, Couzin's zone model and a hybrid built on Vásárhelyi's
+model for real drones. Leaders can also plan a path on the known map
+(A*) and follow it (pure pursuit).
+
+Status: done for the Intelligent Robotic Systems exam. The experiments
+(450 runs) and the report are finished; 3D flight is future work.
+
+- The report: [report/](report/) (build with `tectonic main.tex` from
+  that folder). It covers the design choices, the experiments and the
+  results.
+- Every decision, with its reason and the alternatives turned down:
+  [docs/design-log.md](docs/design-log.md).
 
 ## Setup
 
@@ -61,6 +70,19 @@ Any setting can be changed for one run by its name, e.g.
 `--velocity`: the cruise speed; `--plan 1`: leaders plan a path round the
 walls instead of aiming straight at C). `-h` lists every setting and what it does;
 `--set boids.cohesion=0.5` still works.
+
+## Experiments
+
+```
+uv run tools/sweep.py --map dead_end -n 10 20 30 -j 0 1 2 4 \
+    --seeds 0 1 2 3 4 5 6 7 8 9 --duration 83 --model hybrid --plan 1
+uv run tools/tune.py --model couzin --grid couzin_weight=0.5,1,2   # tuning seeds only
+uv run tools/analyse.py all     # every number in the report; figures to report/figures
+```
+
+A sweep appends one row per run to `logs/sweep_<map>_<model>[_plan].csv`
+and resumes where it stopped. A run succeeds when 90% of the drones are
+in C within the map's limit (83 s on `dead_end`, 112 s on `l_turn`).
 
 ## Checks
 

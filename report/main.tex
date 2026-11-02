@@ -8,7 +8,7 @@
 \usepackage{graphicx}
 \usepackage{booktabs,array}
 \usepackage{subcaption}
-\usepackage{xcolor}
+\usepackage[table]{xcolor}
 \usepackage[round,authoryear]{natbib}
 \usepackage{qrcode}
 \usepackage{tikz}
@@ -34,11 +34,17 @@
     \label{#4}
   \end{figure}}
 
+% A success count in a results table, shaded by it: \score{runs}{out of}{median time,
+% or empty}. The green of the plots' Reynolds; full success is 40% of it.
+\definecolor{success}{HTML}{2E9E44}
+\newcommand{\score}[3]{\cellcolor{success!\the\numexpr #1*40/#2\relax}%
+  {\large\bfseries #1}/#2\if\relax\detokenize{#3}\relax\else\ {\footnotesize #3\,s}\fi}
+
 % Notes to self while drafting; empty this to hide them.
 \newcommand{\todo}[1]{\textcolor{red}{[#1]}}
 
-\title{Leading a drone flock past a dead end:\\
-  three flocking models and a planning layer for informed leaders}
+\title{Who follows the leaders?\\
+  Informed leadership in three flocking models on simulated drones}
 \author{Marco Galeri\\
   \small Intelligent Robotic Systems, Alma Mater Studiorum -- Università di Bologna}
 \date{November 2026}
@@ -47,20 +53,16 @@
 \maketitle
 
 \begin{abstract}
-  A few informed leaders, which the others cannot recognise, have to bring a
-  flock of simulated Crazyflie drones to a goal only they know. Three flocking
-  models, Reynolds' boids, Couzin's zone model and a hybrid built on
-  Vásárhelyi's model for real drones, fly on the same robot, with the same
-  leaders, behind one interface; the leaders can add a deliberative layer
-  that plans a path on the known map and follows it. On maps none of the
-  models was tuned on, 450 runs paired by starting position show that the
-  planner is what gets Reynolds' flock past a corner or a dead end at all, that
-  more leaders help as Couzin predicted only in Couzin's model, and that the
-  hybrid fails with two leaders that plan different ways round an obstacle:
-  its flock follows their average, into the obstacle. What a model makes a
-  follower do, cruise on its own, wait to be pulled, or keep a direction to be
-  outvoted, explains each model's strengths and failures; no flock reached the
-  goal without leaders.
+  A few leaders, which the others cannot recognise, have to bring a flock of
+  simulated Crazyflie drones to a goal only they know. Three flocking models,
+  Reynolds', Couzin's and a hybrid built on Vásárhelyi's model for real
+  drones, fly on the same robot behind one interface, and the leaders can
+  plan a path on the known map. In 450 runs on maps no model was tuned on,
+  the planner is what gets Reynolds' flock past a corner or a dead end; more
+  leaders help, as Couzin predicted, only in Couzin's model; and the hybrid
+  fails with two leaders that go round an obstacle on different sides, since
+  its flock follows their average. What a model makes a follower do explains
+  each one's strengths and failures.
 \end{abstract}
 
 \input{sections/introduction}

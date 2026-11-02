@@ -31,6 +31,7 @@ matplotlib.use("Agg")  # files only, no window
 matplotlib.rcParams["figure.constrained_layout.use"] = True  # room for suptitles and labels
 
 import matplotlib.pyplot as plt  # noqa: E402 - after choosing the backend
+from matplotlib.lines import Line2D  # noqa: E402
 from scipy.stats import binomtest, fisher_exact, wilcoxon  # noqa: E402
 from sweep import ROOT  # noqa: E402
 
@@ -187,24 +188,25 @@ def evaluation(out: Path) -> None:
             to_b, to_a, p = mcnemar(data[m, x, plan], data[m, y, plan], limits[m])
             print(f"  {m:8s} {x} vs {y}: {to_b} / {to_a}, p = {p:.3g}")
 
-    fig, axes = plt.subplots(1, 2, figsize=(9, 3.4), sharey=True)
+    fig, axes = plt.subplots(1, 2, figsize=(9, 3.6), sharey=True)
     for ax, m in zip(axes, HELD_OUT, strict=True):
-        boxes = [
-            [float(r["closest"]) for r in data[m, mo, p]]
-            for mo, p in itertools.product(MODELS, (False, True))
-        ]
-        _boxes(
-            ax,
-            boxes,
-            [
-                f"{mo}\n{'plan' if p else 'no plan'}"
-                for mo, p in itertools.product(MODELS, (False, True))
-            ],
-            [COLOURS[mo] for mo in MODELS for _ in (0, 1)],
-        )
-        ax.axhline(BoidParams().stop_drone, color="grey", linestyle=":", linewidth=1)
-        ax.set_title(f"{m}, n = 20, j = 2")
+        for k, mo in enumerate(MODELS):
+            for p, dx in ((False, -0.18), (True, 0.18)):
+                _dots(ax, k + dx, [float(r["closest"]) for r in data[m, mo, p]], COLOURS[mo], p)
+        ax.set_xticks(range(len(MODELS)), MODELS)
+        ax.set_title(m)
+        _spacing_marks(ax)
     axes[0].set_ylabel("closest two drones came (m)")
+    axes[1].legend(
+        handles=[
+            Line2D([], [], marker="o", linestyle="", color="grey", mfc="none", label="no plan"),
+            Line2D([], [], marker="o", linestyle="", color="grey", label="plan"),
+            Line2D([], [], color="black", linewidth=2, label="median"),
+        ],
+        loc="upper center",
+        fontsize="small",
+        framealpha=0.9,
+    )
     _save(fig, out / "evaluation_closest.pdf")
 
 
@@ -272,27 +274,16 @@ def sweep(out: Path) -> None:
     fig.suptitle(f"dead_end, plan on: runs with 90% in C within {by:.0f} s, of 10")
     _save(fig, out / "sweep_success.pdf")
 
-    fig, axes = plt.subplots(1, 2, figsize=(10, 3.4))
-    positions = [(mo, j) for mo in MODELS for j in JS[1:]]
-    _boxes(
-        axes[0],
-        [[float(r["arrived"]) for r in pooled[mo, j] if ok(r, by)] for mo, j in positions],
-        [f"j {j}" for _, j in positions],
-        [COLOURS[mo] for mo, _ in positions],
-    )
-    axes[0].set_ylabel("time to 90% in C (s), successes only")
-    _boxes(
-        axes[1],
-        [[float(r["closest"]) for r in pooled[mo, j]] for mo, j in positions],
-        [f"j {j}" for _, j in positions],
-        [COLOURS[mo] for mo, _ in positions],
-    )
-    axes[1].axhline(BoidParams().stop_drone, color="grey", linestyle=":", linewidth=1)
-    axes[1].set_ylabel("closest two drones came (m)")
-    for ax in axes:
-        for k, mo in enumerate(MODELS):
-            ax.text(2 + 3 * k, 1.02, mo, transform=ax.get_xaxis_transform(), ha="center")
-    _save(fig, out / "sweep_cost.pdf")
+    print("\npooled over n: median time to 90% of the successes, median closest pair")
+    for mo in MODELS:
+        print(
+            f"  {mo}: "
+            + ", ".join(
+                f"j {j} {median([float(r['arrived']) for r in pooled[mo, j] if ok(r, by)])} s "
+                f"{statistics.median(float(r['closest']) for r in pooled[mo, j]):.2f} m"
+                for j in JS[1:]
+            )
+        )
 
 
 # --- two leaders, two arms -----------------------------------------------------------
@@ -435,15 +426,34 @@ def trajectory(log: Path, map_name: str, n: int, j: int, seed: int, title: str, 
 # --- figures -----------------------------------------------------------------------
 
 
-def _boxes(ax, data: list[list[float]], labels: list[str], colours: list[str]) -> None:
-    """Boxplots with every run drawn on top: with 10 to 30 runs, the points matter."""
-    shown = [d if d else [math.nan] for d in data]
-    parts = ax.boxplot(shown, widths=0.6, patch_artist=True, showfliers=False)
-    for box, colour in zip(parts["boxes"], colours, strict=True):
-        box.set(facecolor=colour, alpha=0.35)
-    for k, d in enumerate(data, 1):
-        ax.scatter([k] * len(d), d, s=8, color="black", alpha=0.6, zorder=3)
-    ax.set_xticks(range(1, len(labels) + 1), labels, fontsize=7)
+def _dots(ax, x: float, values: list[float], colour: str, filled: bool) -> None:
+    """One dot per run, spread sideways so equal values stay visible, and the median
+    as a bar: with 10 runs a box says less than the runs themselves."""
+    spread = [x + 0.12 * (k / max(len(values) - 1, 1) - 0.5) for k in range(len(values))]
+    ax.scatter(
+        spread,
+        sorted(values),
+        s=16,
+        edgecolors=colour,
+        facecolors=colour if filled else "none",
+        linewidths=1,
+        zorder=3,
+    )
+    ax.hlines(statistics.median(values), x - 0.12, x + 0.12, color="black", linewidth=2, zorder=4)
+
+
+def _spacing_marks(ax) -> None:
+    """What a closest-pair distance means: touching, and the margin the limit keeps."""
+    margin = BoidParams().stop_drone
+    for y, text, colour, style in (
+        (0.10, "touching (0.10 m)", "#d62728", "-"),
+        (margin, f"stopping margin ({margin:.2f} m)", "grey", "--"),
+    ):
+        ax.axhline(y, color=colour, linestyle=style, linewidth=0.8)
+        ax.text(2.45, y + 0.005, text, color=colour, fontsize=7, ha="right", va="bottom")
+    ax.axhspan(0, 0.10, color="#d62728", alpha=0.08, linewidth=0)
+    ax.set_xlim(-0.5, 2.5)
+    ax.set_ylim(0, 0.6)
     ax.grid(True, axis="y", linewidth=0.3, alpha=0.5)
 
 
