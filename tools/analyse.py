@@ -3,8 +3,8 @@
     uv run tools/analyse.py evaluation    # held-out maps, n 20, j 2: model x plan
     uv run tools/analyse.py sweep         # dead_end, plan on: n x j per model
     uv run tools/analyse.py split         # do two leaders plan round the same arm?
-    uv run tools/analyse.py trajectory logs/replays/dead_end_hybrid_plan_n20_j2_seed4.csv \
-        --map dead_end -n 20 -j 2 --seed 4 --title "hybrid"
+    uv run tools/analyse.py trajectory logs/replays/dead_end_couzin_plan_n20_j2_seed1.csv \
+        --map dead_end -n 20 -j 2 --seed 1 --title "Couzin"   # --until 45: stop early
     uv run tools/analyse.py maps          # the three experiment maps, with a spawn
     uv run tools/analyse.py all           # all but trajectory
 
@@ -64,6 +64,7 @@ def main() -> int:
     parser.add_argument("-j", type=int, default=2)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--title", default="")
+    parser.add_argument("--until", type=float, help="trajectory: seconds (default: the limit)")
     parser.add_argument("--out", type=Path, default=FIGURES)
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
@@ -78,7 +79,7 @@ def main() -> int:
     if args.what == "trajectory":
         if args.log is None:
             parser.error("trajectory needs a referee log")
-        trajectory(args.log, args.map, args.n, args.j, args.seed, args.title, args.out)
+        trajectory(args.log, args.map, args.n, args.j, args.seed, args.title, args.out, args.until)
     return 0
 
 
@@ -359,7 +360,9 @@ def maps(out: Path) -> None:
 # --- one run from above --------------------------------------------------------------
 
 
-def trajectory(log: Path, map_name: str, n: int, j: int, seed: int, title: str, out: Path) -> None:
+def trajectory(
+    log: Path, map_name: str, n: int, j: int, seed: int, title: str, out: Path, until: float | None
+) -> None:
     """A referee log drawn on its map: each leader's track and the followers' centre."""
     c = course(map_name)
     leaders = {d.id for d in place_swarm(c, n=n, j=j, seed=seed) if d.leader}
@@ -369,7 +372,7 @@ def trajectory(log: Path, map_name: str, n: int, j: int, seed: int, title: str, 
             tracks.setdefault(int(r["id"]), []).append(
                 (float(r["t"]), float(r["x"]), float(r["y"]))
             )
-    by = limit(map_name)
+    by = until or limit(map_name)
     followers = [t for i, t in tracks.items() if i not in leaders]
     steps = min(len(t) for t in followers)
     flock = [
@@ -460,7 +463,7 @@ def _spacing_marks(ax) -> None:
 def _save(fig, file: Path) -> None:
     fig.savefig(file)
     plt.close(fig)
-    print(f"-> {file.relative_to(ROOT)}")
+    print(f"-> {file.relative_to(ROOT) if file.is_relative_to(ROOT) else file}")
 
 
 if __name__ == "__main__":

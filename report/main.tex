@@ -18,20 +18,23 @@
 
 \graphicspath{{figures/}}
 
-% A video in a PDF won't play in most viewers: a still frame that links to it,
-% with a QR code for the printed page.
-% \videofigure{frame image}{url}{caption}{label}
-\newcommand{\videofigure}[4]{%
+% A video in a PDF won't play in most viewers: a still frame that links to the
+% shared folder of videos, with a QR code for the printed page.
+% Each video in the folder is named after the figure it belongs to.
+% \videofigure{frame image}{caption}{label}
+\newcommand{\videos}{https://1drv.ms/f/c/097f17a5c5576e53/IgDCaB52ixbIQKf7tTCjvDMNAe5p9ZON3leDAer6Q2qAWEo?e=v6sTbl}
+\newcommand{\videofigure}[3]{%
   \begin{figure}[tbp]
     \centering
     \begin{minipage}[c]{0.78\linewidth}
-      \href{#2}{\includegraphics[width=\linewidth]{#1}}
+      \href{\videos}{\includegraphics[width=\linewidth]{#1}}
     \end{minipage}\hfill
     \begin{minipage}[c]{0.18\linewidth}
-      \centering\qrcode[height=2.2cm]{#2}
+      \centering\qrcode[height=2.2cm]{\videos}
     \end{minipage}
-    \caption{#3 Video: \url{#2}}
-    \label{#4}
+    \caption[#2]{#2 Video: Figure~\thefigure{} in the videos folder (QR
+      code, or \cref{app:videos}).}
+    \label{#3}
   \end{figure}}
 
 % A success count in a results table, shaded by it: \score{runs}{out of}{median time,
