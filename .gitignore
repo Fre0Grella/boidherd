@@ -18,3 +18,6 @@ controllers/*/runtime.ini
 
 # Editor settings are personal (see README for the Webots import paths)
 .vscode/
+
+# Movies and stills from tools/record.py
+videos/

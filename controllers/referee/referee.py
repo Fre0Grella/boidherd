@@ -3,6 +3,9 @@
 Writes logs/<world name>.csv, one row per drone per time step, flushed as
 it goes so a tool can read it while Webots runs. It never quits Webots: the
 tools stop the Webots they started, and in the GUI you stop it yourself.
+The one exception is a run tools/record.py films (film.py): the referee
+moves the camera with the flock, records the run to its end, and quits once
+the movie is written.
 """
 
 import argparse
@@ -12,6 +15,9 @@ from pathlib import Path
 from typing import cast
 
 from controller import Node, Supervisor  # pyright: ignore[reportMissingImports]
+from film import Film
+
+from util.overrides import overrides
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--sector-a", required=True)
@@ -30,6 +36,10 @@ logs = Path(__file__).resolve().parents[2] / "logs"
 logs.mkdir(exist_ok=True)
 world = Path(referee.getWorldPath()).stem
 
+
+movie = overrides("record")  # set only by tools/record.py
+film = Film(referee, drones, movie) if movie else None
+
 with open(logs / f"{world}.csv", "w", newline="") as f:
     log = csv.writer(f)
     log.writerow(["t", "id", "x", "y", "z", "vx", "vy", "vz"])
@@ -40,3 +50,8 @@ with open(logs / f"{world}.csv", "w", newline="") as f:
             vx, vy, vz = node.getVelocity()[:3]
             log.writerow([t, i, *(f"{v:.4f}" for v in (x, y, z, vx, vy, vz))])
         f.flush()
+        if film:
+            film.step(time_step / 1000)
+            if referee.getTime() >= movie["duration"]:
+                film.cut(time_step)
+                break
